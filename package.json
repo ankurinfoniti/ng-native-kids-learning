@@ -4,19 +4,23 @@
   "license": "MIT",
   "main": "src/main.ts",
   "dependencies": {
+    "@angular/common": "^22.0.0",
+    "@angular/core": "^22.0.0",
+    "@angular/router": "^22.0.0",
     "@ng-native/components": "0.18.2",
     "@ng-native/device": "0.18.2",
     "@ng-native/fabric": "0.18.2",
     "@ng-native/metro": "0.18.2",
     "@ng-native/platform": "0.18.2",
-    "@angular/common": "^22.0.0",
-    "@angular/core": "^22.0.0",
+    "@ng-native/router": "0.18.2",
     "expo": "~58.0.16",
+    "expo-speech": "~58.0.3",
     "expo-status-bar": "~58.0.3",
     "expo-system-ui": "~58.0.6",
     "react": "19.3.0",
     "react-native": "0.88.0",
-    "react-native-safe-area-context": "~5.10.1"
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-screens": "~4.30.0"
   },
   "devDependencies": {
     "@angular/compiler-cli": "^22.0.0",

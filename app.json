@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "kids-learning",
+    "name": "Bal Vatika Prep",
     "slug": "kids-learning",
     "version": "1.0.0",
     "platforms": [
@@ -9,7 +9,7 @@
     ],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
     },
