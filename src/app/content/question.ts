@@ -25,12 +25,21 @@ export interface Question {
 }
 
 /** The answer plus distractors from its look-alikes first, then the pool, in shuffled order. */
-export function optionsFor(answer: Item, pool: readonly Item[], count: number, random: Random): Item[] {
+export function optionsFor(
+  answer: Item,
+  pool: readonly Item[],
+  count: number,
+  random: Random,
+): Item[] {
   const others = pool.filter((item) => item.id !== answer.id);
-  const isLookAlike = (item: Item) => answer.lookAlikes?.includes(item.id) ?? false;
+  const isLookAlike = (item: Item) =>
+    answer.lookAlikes?.includes(item.id) ?? false;
   const distractors = [
     ...shuffle(random, others.filter(isLookAlike)),
-    ...shuffle(random, others.filter((item) => !isLookAlike(item))),
+    ...shuffle(
+      random,
+      others.filter((item) => !isLookAlike(item)),
+    ),
   ].slice(0, count - 1);
   return shuffle(random, [answer, ...distractors]);
 }

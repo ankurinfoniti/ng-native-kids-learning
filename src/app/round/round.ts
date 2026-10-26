@@ -29,7 +29,9 @@ export const ADVANCE_DELAY_MS = new InjectionToken<number>('ADVANCE_DELAY_MS', {
     <safe-area-view class="screen">
       @let q = question();
       <view class="top">
-        <text class="progress">{{ index() + 1 }} / {{ questions().length }}</text>
+        <text class="progress"
+          >{{ index() + 1 }} / {{ questions().length }}</text
+        >
         <pressable
           accessibilityRole="button"
           accessibilityLabel="Hear again"
@@ -138,14 +140,18 @@ export const ADVANCE_DELAY_MS = new InjectionToken<number>('ADVANCE_DELAY_MS', {
 })
 export class Round {
   readonly area = input.required<string>();
-  readonly level = input.required<number, unknown>({ transform: numberAttribute });
+  readonly level = input.required<number, unknown>({
+    transform: numberAttribute,
+  });
 
   private readonly speaker = inject(Speaker);
   private readonly random = inject(Random);
   private readonly nav = inject(NativeNavigation);
   private readonly advanceDelay = inject(ADVANCE_DELAY_MS);
 
-  protected readonly questions = computed(() => buildRound(this.area(), this.level(), this.random));
+  protected readonly questions = computed(() =>
+    buildRound(this.area(), this.level(), this.random),
+  );
   protected readonly index = signal(0);
   protected readonly question = computed(() => this.questions()[this.index()]!);
   /** The tile shown as the answer once the question is settled. */

@@ -1,7 +1,10 @@
 import { Injectable } from '@angular/core';
 
 /** A number in [0, 1). Every shuffle and pick goes through it, so a test can fix the sequence. */
-@Injectable({ providedIn: 'root', useFactory: () => ({ next: () => Math.random() }) })
+@Injectable({
+  providedIn: 'root',
+  useFactory: () => ({ next: () => Math.random() }),
+})
 export abstract class Random {
   abstract next(): number;
 }

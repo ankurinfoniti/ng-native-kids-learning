@@ -1,5 +1,10 @@
 import { pick, shuffle, type Random } from '../random.ts';
-import { optionsFor, ROUND_LENGTH, type Item, type Question } from './question.ts';
+import {
+  optionsFor,
+  ROUND_LENGTH,
+  type Item,
+  type Question,
+} from './question.ts';
 
 const LOOK_ALIKES: Record<number, readonly number[]> = { 6: [9], 9: [6] };
 
@@ -22,7 +27,11 @@ function numberItem(n: number): Item {
   };
 }
 
-type Template = (answer: number, pool: readonly Item[], random: Random) => Question;
+type Template = (
+  answer: number,
+  pool: readonly Item[],
+  random: Random,
+) => Question;
 
 function question(
   answer: number,
@@ -47,22 +56,43 @@ const recognise: Template = (n, pool, random) =>
 
 const count: Template = (n, pool, random) => {
   const thing = pick(random, COUNTABLES);
-  return question(n, pool, random, `How many ${thing.plural}?`, Array(n).fill(thing.glyph));
+  return question(
+    n,
+    pool,
+    random,
+    `How many ${thing.plural}?`,
+    Array(n).fill(thing.glyph),
+  );
 };
 
 const after: Template = (n, pool, random) =>
-  question(n, pool, random, `What comes after ${n - 1}?`, [String(n - 1), '❓']);
+  question(n, pool, random, `What comes after ${n - 1}?`, [
+    String(n - 1),
+    '❓',
+  ]);
 
 const before: Template = (n, pool, random) =>
-  question(n, pool, random, `What comes before ${n + 1}?`, ['❓', String(n + 1)]);
+  question(n, pool, random, `What comes before ${n + 1}?`, [
+    '❓',
+    String(n + 1),
+  ]);
 
 function numbersRound(max: number, random: Random): Question[] {
   const pool = Array.from({ length: max }, (_, i) => numberItem(i + 1));
-  const answers = shuffle(random, pool.map((_, i) => i + 1)).slice(0, ROUND_LENGTH);
+  const answers = shuffle(
+    random,
+    pool.map((_, i) => i + 1),
+  ).slice(0, ROUND_LENGTH);
   return answers.map((n) => {
-    const templates = [recognise, count, ...(n > 1 ? [after] : []), ...(n < max ? [before] : [])];
+    const templates = [
+      recognise,
+      count,
+      ...(n > 1 ? [after] : []),
+      ...(n < max ? [before] : []),
+    ];
     return pick(random, templates)(n, pool, random);
   });
 }
 
-export const numbersLevel1 = (random: Random): Question[] => numbersRound(10, random);
+export const numbersLevel1 = (random: Random): Question[] =>
+  numbersRound(10, random);

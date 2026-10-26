@@ -46,7 +46,8 @@ class FakeBackButton implements HardwareBackSource {
 
   subscribe(listener: () => boolean): () => void {
     this.listeners.push(listener);
-    return () => (this.listeners = this.listeners.filter((l) => l !== listener));
+    return () =>
+      (this.listeners = this.listeners.filter((l) => l !== listener));
   }
 
   press(): void {
@@ -61,7 +62,10 @@ async function renderApp() {
     providers: [
       provideApp(),
       { provide: Speaker, useValue: speaker },
-      { provide: Random, useValue: new SequenceRandom([0.42, 0.07, 0.91, 0.66, 0.23, 0.58]) },
+      {
+        provide: Random,
+        useValue: new SequenceRandom([0.42, 0.07, 0.91, 0.66, 0.23, 0.58]),
+      },
       { provide: ADVANCE_DELAY_MS, useValue: 0 },
       { provide: HardwareBack.SOURCE, useValue: backButton },
     ],
@@ -90,13 +94,20 @@ test('ten first-try answers end on Results with 3 stars and the spoken score', a
 
   for (let n = 1; n <= 10; n++) {
     await screen.findByText(`${n} / 10`);
-    const labels = answerTiles().map((node) => node.props['accessibilityLabel']);
+    const labels = answerTiles().map(
+      (node) => node.props['accessibilityLabel'],
+    );
     expect(new Set(labels).size).toBe(3);
     await user.press(tile(solve(speaker)));
   }
 
-  expect(await screen.findByRole('image', { name: '3 of 3 stars' })).toBeTruthy();
-  expect(speaker.lastSpoken).toEqual({ text: 'You got 10 out of 10!', language: 'en' });
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+  expect(speaker.lastSpoken).toEqual({
+    text: 'You got 10 out of 10!',
+    language: 'en',
+  });
 });
 
 test('a wrong first tap greys that tile and says "Try again!"; a right second tap scores nothing', async () => {
@@ -110,7 +121,10 @@ test('a wrong first tap greys that tile and says "Try again!"; a right second ta
 
   expect(speaker.lastSpoken).toEqual({ text: 'Try again!', language: 'en' });
   expect(
-    screen.getByRole('button', { name: String(wrong.props['accessibilityLabel']), disabled: true }),
+    screen.getByRole('button', {
+      name: String(wrong.props['accessibilityLabel']),
+      disabled: true,
+    }),
   ).toBeTruthy();
   expect(screen.getByText('1 / 10')).toBeTruthy();
 
@@ -118,7 +132,9 @@ test('a wrong first tap greys that tile and says "Try again!"; a right second ta
   await screen.findByText('2 / 10');
   await finishCorrectly(user, speaker, 2);
 
-  expect(await screen.findByRole('image', { name: '3 of 3 stars' })).toBeTruthy();
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
   expect(speaker.lastSpoken?.text).toBe('You got 9 out of 10!');
 });
 
@@ -132,7 +148,10 @@ test('a second wrong tap speaks the right answer, then moves on', async () => {
   await user.press(first!);
   await user.press(second!);
 
-  expect(speaker.spoken).toContainEqual({ text: `The answer is ${answer}.`, language: 'en' });
+  expect(speaker.spoken).toContainEqual({
+    text: `The answer is ${answer}.`,
+    language: 'en',
+  });
   await screen.findByText('2 / 10');
   await finishCorrectly(user, speaker, 2);
   expect(speaker.lastSpoken?.text).toBe('You got 9 out of 10!');
@@ -147,7 +166,9 @@ test.each([
   const { speaker, user } = await renderApp();
   await playRound(user, speaker, score);
 
-  expect(await screen.findByRole('image', { name: `${stars} of 3 stars` })).toBeTruthy();
+  expect(
+    await screen.findByRole('image', { name: `${stars} of 3 stars` }),
+  ).toBeTruthy();
   expect(speaker.lastSpoken?.text).toBe(`You got ${score} out of 10!`);
   expect(screen.queryByText("Let's practise again!")).toBeNull();
 });
@@ -156,9 +177,13 @@ test('fewer than 5 first-try answers earn no stars and an invitation to practise
   const { speaker, user } = await renderApp();
   await playRound(user, speaker, 4);
 
-  expect(await screen.findByRole('image', { name: '0 of 3 stars' })).toBeTruthy();
+  expect(
+    await screen.findByRole('image', { name: '0 of 3 stars' }),
+  ).toBeTruthy();
   expect(screen.getByText("Let's practise again!")).toBeTruthy();
-  expect(speaker.lastSpoken?.text).toBe("You got 4 out of 10! Let's practise again!");
+  expect(speaker.lastSpoken?.text).toBe(
+    "You got 4 out of 10! Let's practise again!",
+  );
 });
 
 type User = ReturnType<typeof userEvent.setup>;
@@ -193,14 +218,20 @@ test('the back button leaves Results for Home', async () => {
 
   backButton.press();
 
-  await waitFor(() => expect(screen.queryByRole('image', { name: /of 3 stars$/ })).toBeNull());
+  await waitFor(() =>
+    expect(screen.queryByRole('image', { name: /of 3 stars$/ })).toBeNull(),
+  );
   expect(screen.queryByText(/ \/ 10$/)).toBeNull();
   expect(screen.getByRole('button', { name: 'Numbers' })).toBeTruthy();
   expect(speaker.log.at(-1)).toBe('stop');
 });
 
 /** Plays a whole round: the first misses are put right on the second try, the rest are right first time. */
-async function playRound(user: User, speaker: RecordingSpeaker, firstTryCorrect: number) {
+async function playRound(
+  user: User,
+  speaker: RecordingSpeaker,
+  firstTryCorrect: number,
+) {
   await user.press(screen.getByRole('button', { name: 'Numbers' }));
   for (let n = 1; n <= 10; n++) {
     await screen.findByText(`${n} / 10`);
@@ -210,7 +241,11 @@ async function playRound(user: User, speaker: RecordingSpeaker, firstTryCorrect:
   }
 }
 
-async function finishCorrectly(user: User, speaker: RecordingSpeaker, from: number) {
+async function finishCorrectly(
+  user: User,
+  speaker: RecordingSpeaker,
+  from: number,
+) {
   for (let n = from; n <= 10; n++) {
     await screen.findByText(`${n} / 10`);
     await user.press(tile(solve(speaker)));
@@ -219,13 +254,17 @@ async function finishCorrectly(user: User, speaker: RecordingSpeaker, from: numb
 }
 
 function wrongTiles(answer: number) {
-  return answerTiles().filter((node) => node.props['accessibilityLabel'] !== String(answer));
+  return answerTiles().filter(
+    (node) => node.props['accessibilityLabel'] !== String(answer),
+  );
 }
 
 function answerTiles() {
   return screen
     .queryAllByRole('button')
-    .filter((node) => /^\d+$/.test(String(node.props['accessibilityLabel'] ?? '')));
+    .filter((node) =>
+      /^\d+$/.test(String(node.props['accessibilityLabel'] ?? '')),
+    );
 }
 
 function tile(answer: number) {

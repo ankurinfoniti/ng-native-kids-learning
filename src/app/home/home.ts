@@ -2,7 +2,9 @@ import { Component } from '@angular/core';
 import { Pressable, SafeAreaView, Text, View } from '@ng-native/components';
 import { NativeRouterLink } from '@ng-native/router';
 
-const AREAS = [{ id: 'numbers', name: 'Numbers', emoji: '🔢', colour: '#ffb347' }] as const;
+const AREAS = [
+  { id: 'numbers', name: 'Numbers', emoji: '🔢', colour: '#ffb347' },
+] as const;
 
 @Component({
   selector: 'app-home',

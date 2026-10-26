@@ -25,7 +25,11 @@ function starsFor(score: number): number {
   host: { style: 'flex: 1' },
   template: `
     <safe-area-view class="screen">
-      <view class="stars" role="image" [accessibilityLabel]="stars() + ' of 3 stars'">
+      <view
+        class="stars"
+        role="image"
+        [accessibilityLabel]="stars() + ' of 3 stars'"
+      >
         @for (slot of [1, 2, 3]; track slot) {
           <text class="star" [class.empty]="slot > stars()">⭐</text>
         }
@@ -69,7 +73,9 @@ function starsFor(score: number): number {
   `,
 })
 export class Results {
-  readonly score = input.required<number, unknown>({ transform: numberAttribute });
+  readonly score = input.required<number, unknown>({
+    transform: numberAttribute,
+  });
 
   private readonly speaker = inject(Speaker);
   protected readonly total = ROUND_LENGTH;
@@ -80,7 +86,10 @@ export class Results {
       const score = this.score();
       const line = `You got ${score} out of ${ROUND_LENGTH}!`;
       untracked(() =>
-        this.speaker.speak(this.stars() === 0 ? `${line} Let's practise again!` : line, 'en'),
+        this.speaker.speak(
+          this.stars() === 0 ? `${line} Let's practise again!` : line,
+          'en',
+        ),
       );
     });
     inject(DestroyRef).onDestroy(() => this.speaker.stop());

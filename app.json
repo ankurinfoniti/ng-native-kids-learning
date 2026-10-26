@@ -3,10 +3,7 @@
     "name": "Bal Vatika Prep",
     "slug": "kids-learning",
     "version": "1.0.0",
-    "platforms": [
-      "ios",
-      "android"
-    ],
+    "platforms": ["ios", "android"],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -28,8 +25,6 @@
         "root": "src/app"
       }
     },
-    "plugins": [
-      "@ng-native/metro"
-    ]
+    "plugins": ["@ng-native/metro"]
   }
 }

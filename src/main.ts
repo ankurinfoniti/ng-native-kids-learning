@@ -4,8 +4,15 @@
 import 'expo';
 import { AppRegistry, Image, Platform, processColor } from 'react-native';
 import { mount } from '@ng-native/platform';
-import { currentConditions, deviceTokens, watchConditions } from '@ng-native/device';
-import { getFabricUIManager, registerPlatformComponents } from '@ng-native/fabric';
+import {
+  currentConditions,
+  deviceTokens,
+  watchConditions,
+} from '@ng-native/device';
+import {
+  getFabricUIManager,
+  registerPlatformComponents,
+} from '@ng-native/fabric';
 import { App } from './app/app.ts';
 import { provideApp } from './app/app.config.ts';
 import { ExpoSpeaker } from './app/expo-speaker.ts';
