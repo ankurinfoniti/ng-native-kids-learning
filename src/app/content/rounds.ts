@@ -6,6 +6,10 @@ const LEVELS: Record<string, Record<number, (random: Random) => Question[]>> = {
   numbers: { 1: numbersLevel1 },
 };
 
+export function hasLevel(area: string, level: number): boolean {
+  return LEVELS[area]?.[level] !== undefined;
+}
+
 export function buildRound(
   area: string,
   level: number,

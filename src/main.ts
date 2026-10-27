@@ -16,13 +16,19 @@ import {
 import { App } from './app/app.ts';
 import { provideApp } from './app/app.config.ts';
 import { ExpoSpeaker } from './app/expo-speaker.ts';
+import { AsyncStorageProgressStore } from './app/progress/async-storage-progress-store.ts';
+import { ProgressStore } from './app/progress/progress-store.ts';
 import { Speaker } from './app/speaker.ts';
 
 registerPlatformComponents(Platform.OS);
 
 AppRegistry.registerRunnable('main', ({ rootTag }) => {
   const app = mount(Number(rootTag), App, getFabricUIManager(), {
-    providers: [provideApp(), { provide: Speaker, useClass: ExpoSpeaker }],
+    providers: [
+      provideApp(),
+      { provide: Speaker, useClass: ExpoSpeaker },
+      { provide: ProgressStore, useClass: AsyncStorageProgressStore },
+    ],
     // Colours, as the integers the platform wants.
     processColor,
     // What `@media` resolves against. Without it every media query is false and a responsive

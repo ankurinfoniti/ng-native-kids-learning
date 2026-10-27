@@ -9,15 +9,8 @@ import {
   untracked,
 } from '@angular/core';
 import { SafeAreaView, Text, View } from '@ng-native/components';
-import { ROUND_LENGTH } from '../content/question.ts';
+import { ROUND_LENGTH, starsFor } from '../content/question.ts';
 import { Speaker } from '../speaker.ts';
-
-function starsFor(score: number): number {
-  if (score >= 9) return 3;
-  if (score >= 7) return 2;
-  if (score >= 5) return 1;
-  return 0;
-}
 
 @Component({
   selector: 'app-results',

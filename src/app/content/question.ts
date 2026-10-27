@@ -3,6 +3,14 @@ import type { Language } from '../speaker.ts';
 
 export const ROUND_LENGTH = 10;
 
+/** Stars for a round's first-try correct answers out of 10. */
+export function starsFor(score: number): number {
+  if (score >= 9) return 3;
+  if (score >= 7) return 2;
+  if (score >= 5) return 1;
+  return 0;
+}
+
 export interface Item {
   /** Stable across releases, for saved progress: `number:7`. */
   readonly id: string;

@@ -12,7 +12,9 @@ import {
 } from '@angular/core';
 import { Pressable, SafeAreaView, Text, View } from '@ng-native/components';
 import { NativeNavigation } from '@ng-native/router';
+import { starsFor } from '../content/question.ts';
 import { buildRound } from '../content/rounds.ts';
+import { Progress } from '../progress/progress.ts';
 import { Random } from '../random.ts';
 import { Speaker } from '../speaker.ts';
 
@@ -147,6 +149,7 @@ export class Round {
   private readonly speaker = inject(Speaker);
   private readonly random = inject(Random);
   private readonly nav = inject(NativeNavigation);
+  private readonly progress = inject(Progress);
   private readonly advanceDelay = inject(ADVANCE_DELAY_MS);
 
   protected readonly questions = computed(() =>
@@ -207,6 +210,7 @@ export class Round {
       }
       this.finished = true;
       this.speaker.stop();
+      void this.progress.record(this.area(), this.level(), starsFor(this.score));
       void this.nav.replace(['/results', this.score]);
     }, this.advanceDelay);
   }

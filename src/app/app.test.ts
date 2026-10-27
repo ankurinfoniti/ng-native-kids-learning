@@ -1,8 +1,16 @@
 import { HardwareBack, type HardwareBackSource } from '@ng-native/device';
-import { render, screen, userEvent, waitFor, within } from '@ng-native/testing';
+import {
+  cleanup,
+  render,
+  screen,
+  userEvent,
+  waitFor,
+  within,
+} from '@ng-native/testing';
 import { expect, test } from 'vitest';
 import { App } from './app.ts';
 import { provideApp } from './app.config.ts';
+import { ProgressStore, type ProgressDoc } from './progress/progress-store.ts';
 import { ADVANCE_DELAY_MS } from './round/round.ts';
 import { Random } from './random.ts';
 import { Speaker, type Language } from './speaker.ts';
@@ -55,13 +63,27 @@ class FakeBackButton implements HardwareBackSource {
   }
 }
 
-async function renderApp() {
+/** The phone's storage, kept as the JSON text a real store would write. */
+class InMemoryProgressStore implements ProgressStore {
+  private saved: string | null = null;
+
+  async load(): Promise<unknown> {
+    return this.saved === null ? null : JSON.parse(this.saved);
+  }
+
+  async save(doc: ProgressDoc): Promise<void> {
+    this.saved = JSON.stringify(doc);
+  }
+}
+
+async function renderApp(store = new InMemoryProgressStore()) {
   const speaker = new RecordingSpeaker();
   const backButton = new FakeBackButton();
   await render(App, {
     providers: [
       provideApp(),
       { provide: Speaker, useValue: speaker },
+      { provide: ProgressStore, useValue: store },
       {
         provide: Random,
         useValue: new SequenceRandom([0.42, 0.07, 0.91, 0.66, 0.23, 0.58]),
@@ -70,7 +92,7 @@ async function renderApp() {
       { provide: HardwareBack.SOURCE, useValue: backButton },
     ],
   });
-  return { speaker, backButton, user: userEvent.setup() };
+  return { speaker, backButton, store, user: userEvent.setup() };
 }
 
 const INSTRUCTION =
@@ -80,7 +102,7 @@ test('the home screen opens a Numbers round that speaks its first question', asy
   const { speaker, user } = await renderApp();
 
   expect(screen.getByText('Bal Vatika Prep')).toBeTruthy();
-  await user.press(screen.getByRole('button', { name: 'Numbers' }));
+  await startLevel1(user);
 
   await screen.findByText('1 / 10');
   expect(speaker.lastSpoken?.language).toBe('en');
@@ -90,7 +112,7 @@ test('the home screen opens a Numbers round that speaks its first question', asy
 
 test('ten first-try answers end on Results with 3 stars and the spoken score', async () => {
   const { speaker, user } = await renderApp();
-  await user.press(screen.getByRole('button', { name: 'Numbers' }));
+  await startLevel1(user);
 
   for (let n = 1; n <= 10; n++) {
     await screen.findByText(`${n} / 10`);
@@ -112,7 +134,7 @@ test('ten first-try answers end on Results with 3 stars and the spoken score', a
 
 test('a wrong first tap greys that tile and says "Try again!"; a right second tap scores nothing', async () => {
   const { speaker, user } = await renderApp();
-  await user.press(screen.getByRole('button', { name: 'Numbers' }));
+  await startLevel1(user);
   await screen.findByText('1 / 10');
   const answer = solve(speaker);
   const wrong = wrongTiles(answer)[0]!;
@@ -140,7 +162,7 @@ test('a wrong first tap greys that tile and says "Try again!"; a right second ta
 
 test('a second wrong tap speaks the right answer, then moves on', async () => {
   const { speaker, user } = await renderApp();
-  await user.press(screen.getByRole('button', { name: 'Numbers' }));
+  await startLevel1(user);
   await screen.findByText('1 / 10');
   const answer = solve(speaker);
   const [first, second] = wrongTiles(answer);
@@ -164,6 +186,7 @@ test.each([
   [5, 1],
 ])('%i first-try answers earn %i stars', async (score, stars) => {
   const { speaker, user } = await renderApp();
+  await startLevel1(user);
   await playRound(user, speaker, score);
 
   expect(
@@ -175,6 +198,7 @@ test.each([
 
 test('fewer than 5 first-try answers earn no stars and an invitation to practise again', async () => {
   const { speaker, user } = await renderApp();
+  await startLevel1(user);
   await playRound(user, speaker, 4);
 
   expect(
@@ -190,7 +214,7 @@ type User = ReturnType<typeof userEvent.setup>;
 
 test('the speaker button says the question again', async () => {
   const { speaker, user } = await renderApp();
-  await user.press(screen.getByRole('button', { name: 'Numbers' }));
+  await startLevel1(user);
   await screen.findByText('1 / 10');
   const question = speaker.lastSpoken!;
 
@@ -199,20 +223,21 @@ test('the speaker button says the question again', async () => {
   expect(speaker.spoken).toEqual([question, question]);
 });
 
-test('the back button leaves a round for Home and stops the voice', async () => {
+test('the back button leaves a round for its levels and stops the voice', async () => {
   const { speaker, backButton, user } = await renderApp();
-  await user.press(screen.getByRole('button', { name: 'Numbers' }));
+  await startLevel1(user);
   await screen.findByText('1 / 10');
 
   backButton.press();
 
   await waitFor(() => expect(screen.queryByText('1 / 10')).toBeNull());
-  expect(screen.getByRole('button', { name: 'Numbers' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: /^Level 1, / })).toBeTruthy();
   expect(speaker.log.at(-1)).toBe('stop');
 });
 
-test('the back button leaves Results for Home', async () => {
+test('the back button leaves Results for the levels, then Home', async () => {
   const { speaker, backButton, user } = await renderApp();
+  await startLevel1(user);
   await playRound(user, speaker, 10);
   await screen.findByRole('image', { name: '3 of 3 stars' });
 
@@ -222,9 +247,126 @@ test('the back button leaves Results for Home', async () => {
     expect(screen.queryByRole('image', { name: /of 3 stars$/ })).toBeNull(),
   );
   expect(screen.queryByText(/ \/ 10$/)).toBeNull();
-  expect(screen.getByRole('button', { name: 'Numbers' })).toBeTruthy();
   expect(speaker.log.at(-1)).toBe('stop');
+  expect(screen.getByRole('button', { name: /^Level 1, / })).toBeTruthy();
+
+  backButton.press();
+
+  await waitFor(() =>
+    expect(screen.queryByRole('button', { name: /^Level 1, / })).toBeNull(),
+  );
+  expect(screen.getByRole('button', { name: /^Numbers, / })).toBeTruthy();
 });
+
+test('Numbers lists three levels: level 1 open, levels 2 and 3 locked', async () => {
+  const { user } = await renderApp();
+  expect(
+    screen.getByRole('button', { name: 'Numbers, 0 of 3 stars' }),
+  ).toBeTruthy();
+
+  await user.press(screen.getByRole('button', { name: /^Numbers, / }));
+
+  expect(
+    await screen.findByRole('button', { name: 'Level 1, 0 of 3 stars' }),
+  ).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Level 2, locked' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Level 3, locked' })).toBeTruthy();
+});
+
+test('a locked level does not start', async () => {
+  const { speaker, user } = await renderApp();
+  await user.press(screen.getByRole('button', { name: /^Numbers, / }));
+
+  await user.press(
+    await screen.findByRole('button', { name: 'Level 2, locked' }),
+  );
+
+  expect(screen.queryByText(/ \/ 10$/)).toBeNull();
+  expect(speaker.spoken).toEqual([]);
+  expect(screen.getByRole('button', { name: 'Level 2, locked' })).toBeTruthy();
+});
+
+test('3 stars unlocks the next level and shows on the levels and the Home tile', async () => {
+  const { speaker, backButton, user } = await renderApp();
+  await startLevel1(user);
+  await playRound(user, speaker, 10);
+  await screen.findByRole('image', { name: '3 of 3 stars' });
+
+  backButton.press();
+
+  expect(
+    await screen.findByRole('button', { name: 'Level 1, 3 of 3 stars' }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: 'Level 2, 0 of 3 stars' }),
+  ).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Level 3, locked' })).toBeTruthy();
+
+  backButton.press();
+
+  expect(
+    await screen.findByRole('button', { name: 'Numbers, 3 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+test('fewer than 3 stars keeps the next level locked', async () => {
+  const { speaker, backButton, user } = await renderApp();
+  await startLevel1(user);
+  await playRound(user, speaker, 8);
+  await screen.findByRole('image', { name: '2 of 3 stars' });
+
+  backButton.press();
+
+  expect(
+    await screen.findByRole('button', { name: 'Level 1, 2 of 3 stars' }),
+  ).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Level 2, locked' })).toBeTruthy();
+});
+
+test('a worse round keeps the best stars', async () => {
+  const { speaker, backButton, user } = await renderApp();
+  await startLevel1(user);
+  await playRound(user, speaker, 8);
+  await screen.findByRole('image', { name: '2 of 3 stars' });
+  backButton.press();
+
+  await user.press(
+    await screen.findByRole('button', { name: 'Level 1, 2 of 3 stars' }),
+  );
+  await playRound(user, speaker, 5);
+  await screen.findByRole('image', { name: '1 of 3 stars' });
+  backButton.press();
+
+  expect(
+    await screen.findByRole('button', { name: 'Level 1, 2 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+test('progress survives a fresh render with the same store', async () => {
+  const first = await renderApp();
+  await startLevel1(first.user);
+  await playRound(first.user, first.speaker, 10);
+  await screen.findByRole('image', { name: '3 of 3 stars' });
+  cleanup();
+
+  const { user } = await renderApp(first.store);
+
+  await user.press(
+    await screen.findByRole('button', { name: 'Numbers, 3 of 3 stars' }),
+  );
+  expect(
+    await screen.findByRole('button', { name: 'Level 1, 3 of 3 stars' }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: 'Level 2, 0 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+/** From Home, through the Numbers levels, into level 1. */
+async function startLevel1(user: User) {
+  await user.press(screen.getByRole('button', { name: /^Numbers, / }));
+  await user.press(await screen.findByRole('button', { name: /^Level 1, / }));
+}
 
 /** Plays a whole round: the first misses are put right on the second try, the rest are right first time. */
 async function playRound(
@@ -232,7 +374,6 @@ async function playRound(
   speaker: RecordingSpeaker,
   firstTryCorrect: number,
 ) {
-  await user.press(screen.getByRole('button', { name: 'Numbers' }));
   for (let n = 1; n <= 10; n++) {
     await screen.findByText(`${n} / 10`);
     const answer = solve(speaker);

@@ -1,10 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { Pressable, SafeAreaView, Text, View } from '@ng-native/components';
 import { NativeRouterLink } from '@ng-native/router';
-
-const AREAS = [
-  { id: 'numbers', name: 'Numbers', emoji: '🔢', colour: '#ffb347' },
-] as const;
+import { AREAS } from '../content/areas.ts';
+import { Progress } from '../progress/progress.ts';
 
 @Component({
   selector: 'app-home',
@@ -15,15 +13,21 @@ const AREAS = [
       <text class="title">Bal Vatika Prep</text>
       <view class="tiles">
         @for (area of areas; track area.id) {
+          @let stars = progress.areaStars(area.id);
           <pressable
             accessibilityRole="button"
-            [accessibilityLabel]="area.name"
+            [accessibilityLabel]="area.name + ', ' + stars + ' of 3 stars'"
             class="tile"
             [style]="{ backgroundColor: area.colour }"
-            [nativeRouterLink]="['/round', area.id, 1]"
+            [nativeRouterLink]="['/area', area.id]"
           >
             <text class="tile-emoji">{{ area.emoji }}</text>
             <text class="tile-name">{{ area.name }}</text>
+            <view class="stars">
+              @for (slot of [1, 2, 3]; track slot) {
+                <text class="star" [class.empty]="slot > stars">⭐</text>
+              }
+            </view>
           </pressable>
         }
       </view>
@@ -65,8 +69,19 @@ const AREAS = [
       font-weight: 700;
       color: #3a2c5a;
     }
+    .stars {
+      flex-direction: row;
+      gap: 4px;
+    }
+    .star {
+      font-size: 24px;
+    }
+    .empty {
+      opacity: 0.2;
+    }
   `,
 })
 export class Home {
   protected readonly areas = AREAS;
+  protected readonly progress = inject(Progress);
 }
