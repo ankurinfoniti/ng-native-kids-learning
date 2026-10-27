@@ -4,7 +4,9 @@ export const PROGRESS_VERSION = 1;
 export interface ProgressDoc {
   readonly version: typeof PROGRESS_VERSION;
   /** Best stars earned, by area then level. */
-  readonly bestStars: Readonly<Record<string, Readonly<Record<number, number>>>>;
+  readonly bestStars: Readonly<
+    Record<string, Readonly<Record<number, number>>>
+  >;
   /** Levels opened beyond level 1, which is always open, by area. */
   readonly unlocked: Readonly<Record<string, readonly number[]>>;
 }

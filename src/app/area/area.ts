@@ -26,7 +26,9 @@ import { Progress } from '../progress/progress.ts';
             @if (level.unlocked) {
               <view class="stars">
                 @for (slot of [1, 2, 3]; track slot) {
-                  <text class="star" [class.empty]="slot > level.stars">⭐</text>
+                  <text class="star" [class.empty]="slot > level.stars"
+                    >⭐</text
+                  >
                 }
               </view>
             } @else {

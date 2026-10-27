@@ -7,7 +7,13 @@ export interface Area {
 }
 
 export const AREAS: readonly Area[] = [
-  { id: 'numbers', name: 'Numbers', emoji: '🔢', colour: '#ffb347', levelCount: 3 },
+  {
+    id: 'numbers',
+    name: 'Numbers',
+    emoji: '🔢',
+    colour: '#ffb347',
+    levelCount: 3,
+  },
 ];
 
 export function areaById(id: string): Area | undefined {

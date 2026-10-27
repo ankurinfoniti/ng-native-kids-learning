@@ -210,7 +210,11 @@ export class Round {
       }
       this.finished = true;
       this.speaker.stop();
-      void this.progress.record(this.area(), this.level(), starsFor(this.score));
+      void this.progress.record(
+        this.area(),
+        this.level(),
+        starsFor(this.score),
+      );
       void this.nav.replace(['/results', this.score]);
     }, this.advanceDelay);
   }

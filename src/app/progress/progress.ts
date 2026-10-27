@@ -6,7 +6,11 @@ import {
   type ProgressDoc,
 } from './progress-store.ts';
 
-const EMPTY: ProgressDoc = { version: PROGRESS_VERSION, bestStars: {}, unlocked: {} };
+const EMPTY: ProgressDoc = {
+  version: PROGRESS_VERSION,
+  bestStars: {},
+  unlocked: {},
+};
 
 /** The child's stars and open levels, loaded on start and saved after each round. */
 @Injectable({ providedIn: 'root' })
