@@ -60,6 +60,19 @@ class SeededRandom implements Random {
   }
 }
 
+/** Seeded, with values the test can put next in line for a pick made after the round is built. */
+class SteeredRandom extends SeededRandom {
+  private readonly queued: number[] = [];
+
+  queue(...values: number[]): void {
+    this.queued.push(...values);
+  }
+
+  override next(): number {
+    return this.queued.shift() ?? super.next();
+  }
+}
+
 /** Android's back button, pressed by the test. The latest listener is asked first, as on a device. */
 class FakeBackButton implements HardwareBackSource {
   private listeners: (() => boolean)[] = [];
@@ -95,6 +108,7 @@ class InMemoryProgressStore implements ProgressStore {
 async function renderApp(
   store = new InMemoryProgressStore(),
   random: Random = new SequenceRandom([0.42, 0.07, 0.91, 0.66, 0.23, 0.58]),
+  advanceDelay = 0,
 ) {
   const speaker = new RecordingSpeaker();
   const backButton = new FakeBackButton();
@@ -104,7 +118,7 @@ async function renderApp(
       { provide: Speaker, useValue: speaker },
       { provide: ProgressStore, useValue: store },
       { provide: Random, useValue: random },
-      { provide: ADVANCE_DELAY_MS, useValue: 0 },
+      { provide: ADVANCE_DELAY_MS, useValue: advanceDelay },
       { provide: HardwareBack.SOURCE, useValue: backButton },
     ],
   });
@@ -125,6 +139,9 @@ function numbersUnlockedStore() {
 
 /** A seed whose level 2 round has between, biggest and smallest, and whose level 3 round asks for a mirrored number. */
 const VARIED_SEED = 19;
+
+/** An advance delay no test outlasts, so feedback stays on screen to be inspected. */
+const HOLD_FEEDBACK = 60_000;
 
 test('the home screen opens a Numbers round that speaks its first question', async () => {
   const { speaker, user } = await renderApp();
@@ -236,6 +253,78 @@ test('fewer than 5 first-try answers earn no stars and an invitation to practise
   expect(speaker.lastSpoken?.text).toBe(
     "You got 4 out of 10! Let's practise again!",
   );
+});
+
+test('a right first tap is praised in English with a phrase picked at random', async () => {
+  const random = new SteeredRandom(1);
+  const { speaker, user } = await renderApp(undefined, random);
+  await startLevel1(user);
+  await screen.findByText('1 / 10');
+
+  random.queue(0.99);
+  await user.press(tile(solve(speaker)));
+
+  expect(speaker.spoken).toContainEqual({
+    text: 'You got it!',
+    language: 'en',
+  });
+
+  await screen.findByText('2 / 10');
+  random.queue(0.3);
+  await user.press(tile(solve(speaker)));
+
+  expect(speaker.spoken).toContainEqual({ text: 'Super!', language: 'en' });
+});
+
+test('a right second tap is praised too, though it scores nothing', async () => {
+  const random = new SteeredRandom(1);
+  const { speaker, user } = await renderApp(undefined, random);
+  await startLevel1(user);
+  await screen.findByText('1 / 10');
+  const answer = solve(speaker);
+
+  await user.press(wrongTiles(answer)[0]!);
+  random.queue(0);
+  await user.press(tile(answer));
+
+  expect(speaker.spoken).toContainEqual({ text: 'Well done!', language: 'en' });
+});
+
+test('the tile tapped right is celebrated with a star; the others are not', async () => {
+  const { speaker, user } = await renderApp(
+    undefined,
+    undefined,
+    HOLD_FEEDBACK,
+  );
+  await startLevel1(user);
+  await screen.findByText('1 / 10');
+  const answer = solve(speaker);
+  expect(screen.queryByTestId('praise-star')).toBeNull();
+
+  await user.press(tile(answer));
+
+  expect(within(tile(answer)).getByTestId('praise-star')).toBeTruthy();
+  for (const other of wrongTiles(answer)) {
+    expect(within(other).queryByTestId('praise-star')).toBeNull();
+  }
+});
+
+test('an answer shown after two misses is not celebrated', async () => {
+  const { speaker, user } = await renderApp(
+    undefined,
+    undefined,
+    HOLD_FEEDBACK,
+  );
+  await startLevel1(user);
+  await screen.findByText('1 / 10');
+  const answer = solve(speaker);
+  const [first, second] = wrongTiles(answer);
+
+  await user.press(first!);
+  await user.press(second!);
+
+  expect(speaker.lastSpoken?.text).toBe(`The answer is ${answer}.`);
+  expect(screen.queryByTestId('praise-star')).toBeNull();
 });
 
 type User = ReturnType<typeof userEvent.setup>;

@@ -24,7 +24,9 @@ import { Speaker } from '../speaker.ts';
         [accessibilityLabel]="stars() + ' of 3 stars'"
       >
         @for (slot of [1, 2, 3]; track slot) {
-          <text class="star" [class.empty]="slot > stars()">⭐</text>
+          <text class="star" [class.empty]="slot > stars()" [style.--i]="$index"
+            >⭐</text
+          >
         }
       </view>
       <text class="score">{{ score() }} / {{ total }}</text>
@@ -48,6 +50,19 @@ import { Speaker } from '../speaker.ts';
     }
     .star {
       font-size: 72px;
+      animation: pop-in 500ms ease-out both;
+      animation-delay: calc(var(--i) * 250ms);
+    }
+    @keyframes pop-in {
+      0% {
+        transform: scale(0) rotate(-90deg);
+      }
+      70% {
+        transform: scale(1.2) rotate(10deg);
+      }
+      100% {
+        transform: scale(1) rotate(0deg);
+      }
     }
     .empty {
       opacity: 0.2;

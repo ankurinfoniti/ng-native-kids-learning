@@ -15,13 +15,15 @@ import { NativeNavigation } from '@ng-native/router';
 import { starsFor } from '../content/question.ts';
 import { buildRound } from '../content/rounds.ts';
 import { Progress } from '../progress/progress.ts';
-import { Random } from '../random.ts';
+import { Random, pick } from '../random.ts';
 import { Speaker } from '../speaker.ts';
 
 /** How long feedback stays on screen before the next question. */
 export const ADVANCE_DELAY_MS = new InjectionToken<number>('ADVANCE_DELAY_MS', {
   factory: () => 1800,
 });
+
+const PRAISE = ['Well done!', 'Super!', 'Great job!', 'You got it!'];
 
 @Component({
   selector: 'app-round',
@@ -58,11 +60,15 @@ export const ADVANCE_DELAY_MS = new InjectionToken<number>('ADVANCE_DELAY_MS', {
             class="tile"
             [class.two-up]="q.options.length === 4"
             [class.answer]="resolvedId() === option.id"
+            [class.celebrate]="celebratedId() === option.id"
             [class.wrong]="wrongIds().includes(option.id)"
             [disabled]="wrongIds().includes(option.id)"
             (press)="choose(option.id)"
           >
             <text class="tile-glyph">{{ option.glyph }}</text>
+            @if (celebratedId() === option.id) {
+              <text testID="praise-star" class="praise-star">⭐</text>
+            }
           </pressable>
         }
       </view>
@@ -142,6 +148,40 @@ export const ADVANCE_DELAY_MS = new InjectionToken<number>('ADVANCE_DELAY_MS', {
       border-color: #bbbbbb;
       opacity: 0.5;
     }
+    .celebrate {
+      z-index: 1;
+      animation: bounce 600ms ease-out;
+    }
+    .praise-star {
+      position: absolute;
+      top: -8px;
+      font-size: 48px;
+      animation: fly-up 900ms ease-out forwards;
+    }
+    @keyframes bounce {
+      0% {
+        transform: scale(1);
+      }
+      30% {
+        transform: scale(1.15);
+      }
+      60% {
+        transform: scale(0.95);
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+    @keyframes fly-up {
+      0% {
+        opacity: 1;
+        transform: translateY(0px) scale(0.6);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-160px) scale(1.4);
+      }
+    }
   `,
 })
 export class Round {
@@ -164,6 +204,8 @@ export class Round {
   /** The tile shown as the answer once the question is settled. */
   protected readonly resolvedId = signal<string | null>(null);
   protected readonly wrongIds = signal<readonly string[]>([]);
+  /** The tile the child tapped right, which bounces and sends up a star. */
+  protected readonly celebratedId = signal<string | null>(null);
   private score = 0;
   private finished = false;
   private advanceTimer: ReturnType<typeof setTimeout> | undefined;
@@ -192,6 +234,8 @@ export class Round {
     if (optionId === q.answerId) {
       if (firstTry) this.score++;
       this.resolvedId.set(optionId);
+      this.celebratedId.set(optionId);
+      this.speaker.speak(pick(this.random, PRAISE), 'en');
       this.advance();
     } else if (firstTry) {
       this.wrongIds.set([optionId]);
@@ -208,6 +252,7 @@ export class Round {
     this.advanceTimer = setTimeout(() => {
       if (this.index() + 1 < this.questions().length) {
         this.resolvedId.set(null);
+        this.celebratedId.set(null);
         this.wrongIds.set([]);
         this.index.update((i) => i + 1);
         return;
