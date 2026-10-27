@@ -56,6 +56,7 @@ export const ADVANCE_DELAY_MS = new InjectionToken<number>('ADVANCE_DELAY_MS', {
             accessibilityRole="button"
             [accessibilityLabel]="option.name"
             class="tile"
+            [class.two-up]="q.options.length === 4"
             [class.answer]="resolvedId() === option.id"
             [class.wrong]="wrongIds().includes(option.id)"
             [disabled]="wrongIds().includes(option.id)"
@@ -123,6 +124,9 @@ export const ADVANCE_DELAY_MS = new InjectionToken<number>('ADVANCE_DELAY_MS', {
       background-color: #ffffff;
       border-width: 4px;
       border-color: #ffb347;
+    }
+    .two-up {
+      flex-basis: 40%;
     }
     .tile-glyph {
       font-size: 56px;

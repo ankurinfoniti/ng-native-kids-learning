@@ -1,9 +1,9 @@
 import type { Random } from '../random.ts';
-import { numbersLevel1 } from './numbers.ts';
+import { numbersLevel1, numbersLevel2, numbersLevel3 } from './numbers.ts';
 import type { Question } from './question.ts';
 
 const LEVELS: Record<string, Record<number, (random: Random) => Question[]>> = {
-  numbers: { 1: numbersLevel1 },
+  numbers: { 1: numbersLevel1, 2: numbersLevel2, 3: numbersLevel3 },
 };
 
 export function hasLevel(area: string, level: number): boolean {

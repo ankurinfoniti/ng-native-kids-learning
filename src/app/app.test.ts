@@ -48,6 +48,18 @@ class SequenceRandom implements Random {
   }
 }
 
+/** Repeatable pseudo-random numbers (mulberry32), for rounds long enough to need variety. */
+class SeededRandom implements Random {
+  constructor(private seed: number) {}
+
+  next(): number {
+    let t = (this.seed = (this.seed + 0x6d2b79f5) | 0);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+}
+
 /** Android's back button, pressed by the test. The latest listener is asked first, as on a device. */
 class FakeBackButton implements HardwareBackSource {
   private listeners: (() => boolean)[] = [];
@@ -65,7 +77,11 @@ class FakeBackButton implements HardwareBackSource {
 
 /** The phone's storage, kept as the JSON text a real store would write. */
 class InMemoryProgressStore implements ProgressStore {
-  private saved: string | null = null;
+  private saved: string | null;
+
+  constructor(doc?: ProgressDoc) {
+    this.saved = doc ? JSON.stringify(doc) : null;
+  }
 
   async load(): Promise<unknown> {
     return this.saved === null ? null : JSON.parse(this.saved);
@@ -76,7 +92,10 @@ class InMemoryProgressStore implements ProgressStore {
   }
 }
 
-async function renderApp(store = new InMemoryProgressStore()) {
+async function renderApp(
+  store = new InMemoryProgressStore(),
+  random: Random = new SequenceRandom([0.42, 0.07, 0.91, 0.66, 0.23, 0.58]),
+) {
   const speaker = new RecordingSpeaker();
   const backButton = new FakeBackButton();
   await render(App, {
@@ -84,10 +103,7 @@ async function renderApp(store = new InMemoryProgressStore()) {
       provideApp(),
       { provide: Speaker, useValue: speaker },
       { provide: ProgressStore, useValue: store },
-      {
-        provide: Random,
-        useValue: new SequenceRandom([0.42, 0.07, 0.91, 0.66, 0.23, 0.58]),
-      },
+      { provide: Random, useValue: random },
       { provide: ADVANCE_DELAY_MS, useValue: 0 },
       { provide: HardwareBack.SOURCE, useValue: backButton },
     ],
@@ -96,7 +112,19 @@ async function renderApp(store = new InMemoryProgressStore()) {
 }
 
 const INSTRUCTION =
-  /^(Tap the number (10|[1-9])|How many \w+\?|What comes (after|before) (10|[1-9])\?)$/;
+  /^(Tap the number \d+|How many \w+\?|What comes (after|before) \d+\?|What comes between \d+ and \d+\?|Which is the (biggest|smallest) number\?)$/;
+
+/** Numbers levels 2 and 3 opened, as after two 3-star rounds. */
+function numbersUnlockedStore() {
+  return new InMemoryProgressStore({
+    version: 1,
+    bestStars: { numbers: { 1: 3, 2: 3 } },
+    unlocked: { numbers: [2, 3] },
+  });
+}
+
+/** A seed whose level 2 round has between, biggest and smallest, and whose level 3 round asks for a mirrored number. */
+const VARIED_SEED = 19;
 
 test('the home screen opens a Numbers round that speaks its first question', async () => {
   const { speaker, user } = await renderApp();
@@ -362,10 +390,137 @@ test('progress survives a fresh render with the same store', async () => {
   ).toBeTruthy();
 });
 
+test.each([
+  [2, 20, 10],
+  [3, 50, 20],
+])(
+  'level %i plays ten questions on 1-%i with 4 tiles, counting at most %i objects',
+  async (level, max, countCap) => {
+    const { speaker, user } = await renderApp(numbersUnlockedStore());
+    await startLevel(user, level);
+
+    for (let n = 1; n <= 10; n++) {
+      await screen.findByText(`${n} / 10`);
+      expect(speaker.lastSpoken?.text).toMatch(INSTRUCTION);
+      const numbers = tileNumbers();
+      expect(new Set(numbers).size).toBe(4);
+      for (const value of numbers) {
+        expect(value).toBeGreaterThanOrEqual(1);
+        expect(value).toBeLessThanOrEqual(max);
+      }
+      if (speaker.lastSpoken!.text.startsWith('How many')) {
+        expect(promptGlyphs().length).toBeLessThanOrEqual(countCap);
+      }
+      await user.press(tile(solve(speaker)));
+    }
+
+    expect(
+      await screen.findByRole('image', { name: '3 of 3 stars' }),
+    ).toBeTruthy();
+    expect(speaker.lastSpoken?.text).toBe('You got 10 out of 10!');
+  },
+);
+
+test('a "between" question shows both numbers around a gap and takes the number in the middle', async () => {
+  const { speaker, user } = await renderApp(
+    numbersUnlockedStore(),
+    new SeededRandom(VARIED_SEED),
+  );
+  await startLevel(user, 2);
+  let betweens = 0;
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    const between = /^What comes between (\d+) and (\d+)\?$/.exec(
+      speaker.lastSpoken!.text,
+    );
+    if (!between) {
+      await user.press(tile(solve(speaker)));
+      continue;
+    }
+    betweens++;
+    const [low, high] = [Number(between[1]), Number(between[2])];
+    expect(high - low).toBe(2);
+    expect(promptGlyphs()).toEqual([String(low), '❓', String(high)]);
+    await user.press(tile(low + 1));
+  }
+
+  expect(betweens).toBeGreaterThan(0);
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+test('"biggest" and "smallest" questions are answered by the biggest or smallest tile', async () => {
+  const { speaker, user } = await renderApp(
+    numbersUnlockedStore(),
+    new SeededRandom(VARIED_SEED),
+  );
+  await startLevel(user, 2);
+  const asked = new Set<string>();
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    const which = /^Which is the (biggest|smallest) number\?$/.exec(
+      speaker.lastSpoken!.text,
+    );
+    if (which) asked.add(which[1]!);
+    await user.press(tile(solve(speaker)));
+  }
+
+  expect([...asked].sort()).toEqual(['biggest', 'smallest']);
+  expect(speaker.lastSpoken?.text).toBe('You got 10 out of 10!');
+});
+
+test('"Tap the number" offers look-alikes: 6 and 9, 12 and 21, 13 and 31, and a neighbouring number', async () => {
+  const mirrors: Record<number, number> = {
+    6: 9,
+    9: 6,
+    12: 21,
+    21: 12,
+    13: 31,
+    31: 13,
+  };
+  const { speaker, user } = await renderApp(
+    numbersUnlockedStore(),
+    new SeededRandom(VARIED_SEED),
+  );
+  await startLevel(user, 3);
+  let mirrored = 0;
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    const recognise = /^Tap the number (\d+)$/.exec(speaker.lastSpoken!.text);
+    if (recognise) {
+      const answer = Number(recognise[1]);
+      const numbers = tileNumbers();
+      expect(numbers.some((value) => Math.abs(value - answer) === 1)).toBe(
+        true,
+      );
+      const mirror = mirrors[answer];
+      if (mirror !== undefined) {
+        expect(numbers).toContain(mirror);
+        mirrored++;
+      }
+    }
+    await user.press(tile(solve(speaker)));
+  }
+
+  expect(mirrored).toBeGreaterThan(0);
+});
+
 /** From Home, through the Numbers levels, into level 1. */
 async function startLevel1(user: User) {
+  await startLevel(user, 1);
+}
+
+async function startLevel(user: User, level: number) {
   await user.press(screen.getByRole('button', { name: /^Numbers, / }));
-  await user.press(await screen.findByRole('button', { name: /^Level 1, / }));
+  await user.press(
+    await screen.findByRole('button', {
+      name: new RegExp(`^Level ${level}, \\d`),
+    }),
+  );
 }
 
 /** Plays a whole round: the first misses are put right on the second try, the rest are right first time. */
@@ -408,8 +563,18 @@ function answerTiles() {
     );
 }
 
+function tileNumbers() {
+  return answerTiles().map((node) => Number(node.props['accessibilityLabel']));
+}
+
 function tile(answer: number) {
   return screen.getByRole('button', { name: String(answer) });
+}
+
+function promptGlyphs() {
+  return within(screen.getByTestId('prompt'))
+    .getAllByText(/.+/u)
+    .map((node) => node.children.map((raw) => raw.props['text']).join(''));
 }
 
 /** Works the answer out from the spoken instruction, the way a child who understood it would. */
@@ -419,5 +584,8 @@ function solve(speaker: RecordingSpeaker): number {
   if (text.startsWith('Tap the number')) return n;
   if (text.startsWith('What comes after')) return n + 1;
   if (text.startsWith('What comes before')) return n - 1;
-  return within(screen.getByTestId('prompt')).getAllByText(/.+/u).length;
+  if (text.startsWith('What comes between')) return n + 1;
+  if (text.includes('biggest')) return Math.max(...tileNumbers());
+  if (text.includes('smallest')) return Math.min(...tileNumbers());
+  return promptGlyphs().length;
 }

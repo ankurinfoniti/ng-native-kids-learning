@@ -17,7 +17,7 @@ export interface Item {
   /** What is spoken, and the tile's accessibility label. */
   readonly name: string;
   readonly glyph: string;
-  /** Ids of items that look or sound like this one, preferred as distractors. */
+  /** Ids of items that look or sound like this one, closest first, preferred as distractors. */
   readonly lookAlikes?: readonly string[];
 }
 
@@ -32,7 +32,7 @@ export interface Question {
   readonly answerLine: string;
 }
 
-/** The answer plus distractors from its look-alikes first, then the pool, in shuffled order. */
+/** The answer plus distractors from its look-alikes first, closest first, then the pool, in shuffled order. */
 export function optionsFor(
   answer: Item,
   pool: readonly Item[],
@@ -40,13 +40,14 @@ export function optionsFor(
   random: Random,
 ): Item[] {
   const others = pool.filter((item) => item.id !== answer.id);
-  const isLookAlike = (item: Item) =>
-    answer.lookAlikes?.includes(item.id) ?? false;
+  const lookAlikes = (answer.lookAlikes ?? []).flatMap((id) =>
+    others.filter((item) => item.id === id),
+  );
   const distractors = [
-    ...shuffle(random, others.filter(isLookAlike)),
+    ...lookAlikes,
     ...shuffle(
       random,
-      others.filter((item) => !isLookAlike(item)),
+      others.filter((item) => !lookAlikes.includes(item)),
     ),
   ].slice(0, count - 1);
   return shuffle(random, [answer, ...distractors]);
