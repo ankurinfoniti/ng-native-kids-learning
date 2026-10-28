@@ -598,13 +598,264 @@ test('"Tap the number" offers look-alikes: 6 and 9, 12 and 21, 13 and 31, and a 
   expect(mirrored).toBeGreaterThan(0);
 });
 
+test('English lists four levels: level 1 open, levels 2 to 4 locked', async () => {
+  const { user } = await renderApp();
+  expect(
+    screen.getByRole('button', { name: 'English, 0 of 3 stars' }),
+  ).toBeTruthy();
+
+  await user.press(screen.getByRole('button', { name: /^English, / }));
+
+  expect(
+    await screen.findByRole('button', { name: 'Level 1, 0 of 3 stars' }),
+  ).toBeTruthy();
+  for (const level of [2, 3, 4]) {
+    expect(
+      screen.getByRole('button', { name: `Level ${level}, locked` }),
+    ).toBeTruthy();
+  }
+});
+
+test('English level 1 asks for ten capital letters by name, with 3 tiles each', async () => {
+  const { speaker, user } = await renderApp();
+  await startLevel(user, 1, 'English');
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    const asked = /^Tap the letter (.+)$/.exec(speaker.lastSpoken!.text);
+    expect(asked).not.toBeNull();
+    expect(speaker.lastSpoken?.language).toBe('en');
+    const tiles = optionTiles();
+    expect(tiles).toHaveLength(3);
+    for (const node of tiles) {
+      const glyph = tileGlyph(node);
+      expect(glyph).toMatch(/^[A-Z]$/);
+      expect(node.props['accessibilityLabel']).toBe(LETTER_NAMES[glyph]);
+    }
+    await user.press(screen.getByRole('button', { name: asked![1] }));
+  }
+
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+  expect(speaker.lastSpoken?.text).toBe('You got 10 out of 10!');
+});
+
+test('English level 4 asks which picture starts with a letter, showing the letter big and small', async () => {
+  const { speaker, user } = await renderApp(englishUnlockedStore());
+  await startLevel(user, 4, 'English');
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    const asked = /^Which one starts with (.+)\?$/.exec(
+      speaker.lastSpoken!.text,
+    );
+    expect(asked).not.toBeNull();
+    expect(speaker.lastSpoken?.language).toBe('en');
+    const letter = letterNamed(asked![1]!);
+    expect(promptGlyphs()).toEqual([letter, letter.toLowerCase()]);
+    const tiles = optionTiles();
+    expect(tiles).toHaveLength(4);
+    for (const node of tiles)
+      expect(tileGlyph(node)).toMatch(/\p{Emoji_Presentation}|\uFE0F/u);
+    const starters = tiles.filter((node) =>
+      String(node.props['accessibilityLabel']).startsWith(letter.toLowerCase()),
+    );
+    expect(starters).toHaveLength(1);
+    await user.press(starters[0]!);
+  }
+
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+test('English level 1 offers capital look-alikes first: C G O Q, and E F', async () => {
+  const { speaker, user } = await renderApp(
+    undefined,
+    new SeededRandom(ENGLISH_SEED),
+  );
+  await startLevel(user, 1, 'English');
+  let lookAlikes = 0;
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    const name = /^Tap the letter (.+)$/.exec(speaker.lastSpoken!.text)![1]!;
+    const letter = letterNamed(name);
+    const group = ['CGOQ', 'EF'].find((g) => g.includes(letter));
+    if (group) {
+      lookAlikes++;
+      const others = optionTiles()
+        .map(tileGlyph)
+        .filter((glyph) => glyph !== letter);
+      const fromGroup = others.filter((glyph) => group.includes(glyph));
+      expect(fromGroup).toHaveLength(Math.min(2, group.length - 1));
+    }
+    await user.press(screen.getByRole('button', { name }));
+  }
+
+  expect(lookAlikes).toBeGreaterThan(0);
+});
+
+test('English level 2 asks for small letters by name, offering look-alikes first: b d p q, and m n w', async () => {
+  const { speaker, user } = await renderApp(
+    englishUnlockedStore(),
+    new SeededRandom(ENGLISH_SEED),
+  );
+  await startLevel(user, 2, 'English');
+  let lookAlikes = 0;
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    const name = /^Tap the letter (.+)$/.exec(speaker.lastSpoken!.text)![1]!;
+    const letter = letterNamed(name).toLowerCase();
+    const tiles = optionTiles();
+    expect(tiles).toHaveLength(4);
+    for (const node of tiles) {
+      const glyph = tileGlyph(node);
+      expect(glyph).toMatch(/^[a-z]$/);
+      expect(node.props['accessibilityLabel']).toBe(
+        LETTER_NAMES[glyph.toUpperCase()],
+      );
+    }
+    const group = ['bdpq', 'mnw'].find((g) => g.includes(letter));
+    if (group) {
+      lookAlikes++;
+      expect(tiles.map(tileGlyph)).toEqual(expect.arrayContaining([...group]));
+    }
+    await user.press(screen.getByRole('button', { name }));
+  }
+
+  expect(lookAlikes).toBeGreaterThan(0);
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+test('English level 3 shows a capital letter and asks for its small letter among 4', async () => {
+  const { speaker, user } = await renderApp(englishUnlockedStore());
+  await startLevel(user, 3, 'English');
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    const [capital] = promptGlyphs();
+    const name = LETTER_NAMES[capital!];
+    expect(speaker.lastSpoken).toEqual({
+      text: `Find small ${name} for big ${name}`,
+      language: 'en',
+    });
+    const tiles = optionTiles();
+    expect(tiles).toHaveLength(4);
+    for (const node of tiles) expect(tileGlyph(node)).toMatch(/^[a-z]$/);
+    await user.press(
+      tiles.find((node) => tileGlyph(node) === capital!.toLowerCase())!,
+    );
+  }
+
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+test('3 stars in English level 1 opens English level 2 only, and shows on the English tile', async () => {
+  const { speaker, backButton, user } = await renderApp();
+  await startLevel(user, 1, 'English');
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    const name = /^Tap the letter (.+)$/.exec(speaker.lastSpoken!.text)![1]!;
+    await user.press(screen.getByRole('button', { name }));
+  }
+  await screen.findByRole('image', { name: '3 of 3 stars' });
+
+  backButton.press();
+
+  expect(
+    await screen.findByRole('button', { name: 'Level 1, 3 of 3 stars' }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: 'Level 2, 0 of 3 stars' }),
+  ).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Level 3, locked' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Level 4, locked' })).toBeTruthy();
+
+  backButton.press();
+
+  expect(
+    await screen.findByRole('button', { name: 'English, 3 of 3 stars' }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: 'Numbers, 0 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+/** A seed whose English level 1 and 2 rounds each ask for a letter with look-alikes. */
+const ENGLISH_SEED = 1;
+
+/** English levels 2 to 4 opened, as after three 3-star rounds. */
+function englishUnlockedStore() {
+  return new InMemoryProgressStore({
+    version: 1,
+    bestStars: { english: { 1: 3, 2: 3, 3: 3 } },
+    unlocked: { english: [2, 3, 4] },
+  });
+}
+
+function letterNamed(name: string): string {
+  return Object.keys(LETTER_NAMES).find((l) => LETTER_NAMES[l] === name)!;
+}
+const LETTER_NAMES: Record<string, string> = {
+  A: 'ay',
+  B: 'bee',
+  C: 'see',
+  D: 'dee',
+  E: 'ee',
+  F: 'ef',
+  G: 'jee',
+  H: 'aitch',
+  I: 'eye',
+  J: 'jay',
+  K: 'kay',
+  L: 'el',
+  M: 'em',
+  N: 'en',
+  O: 'oh',
+  P: 'pee',
+  Q: 'cue',
+  R: 'are',
+  S: 'ess',
+  T: 'tee',
+  U: 'you',
+  V: 'vee',
+  W: 'double you',
+  X: 'ex',
+  Y: 'why',
+  Z: 'zed',
+};
+
+/** The answer tiles of the question on screen: not the replay button, nor the Home and level buttons below in the stack. */
+function optionTiles() {
+  return screen.queryAllByRole('button').filter((node) => {
+    const label = String(node.props['accessibilityLabel'] ?? '');
+    return label !== 'Hear again' && !label.includes(',');
+  });
+}
+
+function tileGlyph(node: ReturnType<typeof optionTiles>[number]) {
+  return within(node)
+    .getAllByText(/.+/u)[0]!
+    .children.map((raw) => raw.props['text'])
+    .join('');
+}
+
 /** From Home, through the Numbers levels, into level 1. */
 async function startLevel1(user: User) {
   await startLevel(user, 1);
 }
 
-async function startLevel(user: User, level: number) {
-  await user.press(screen.getByRole('button', { name: /^Numbers, / }));
+async function startLevel(user: User, level: number, area = 'Numbers') {
+  await user.press(
+    screen.getByRole('button', { name: new RegExp(`^${area}, `) }),
+  );
   await user.press(
     await screen.findByRole('button', {
       name: new RegExp(`^Level ${level}, \\d`),

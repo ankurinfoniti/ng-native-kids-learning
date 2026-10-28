@@ -8,6 +8,13 @@ export interface Area {
 
 export const AREAS: readonly Area[] = [
   {
+    id: 'english',
+    name: 'English',
+    emoji: '🔤',
+    colour: '#8ecbff',
+    levelCount: 4,
+  },
+  {
     id: 'numbers',
     name: 'Numbers',
     emoji: '🔢',
