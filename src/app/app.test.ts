@@ -1695,6 +1695,116 @@ test('a Mock Test miss counts toward weak spots: a number missed once before bec
   expect(screen.getAllByText(/ · Numbers$/)).toHaveLength(2);
 });
 
+/** The Oral prompts as spoken, in order. */
+const ORAL_PROMPTS = [
+  'What is your name?',
+  'How old are you?',
+  "What is your mother's name?",
+  "What is your father's name?",
+  'Where do you live?',
+  'Can you say a rhyme?',
+  'Count from 1 to 20.',
+  'Say the letters from A to Z.',
+  'Look at the picture. What do you see?',
+  'What is your favourite colour?',
+  'What is your favourite fruit?',
+  'What is your favourite animal?',
+  'What do you do with your toothbrush?',
+  'Which animal says moo?',
+];
+
+test('the Oral tile on Home speaks one prompt at a time, moves on at each ✓ or ✗, and ends with the ✓ count', async () => {
+  const { speaker, user } = await renderApp();
+  await user.press(screen.getByRole('button', { name: 'Oral' }));
+
+  expect(await screen.findByText('What is your name?')).toBeTruthy();
+  expect(speaker.spoken).toEqual([
+    { text: 'What is your name?', language: 'en' },
+  ]);
+
+  for (let n = 1; n <= 14; n++) {
+    await screen.findByText(`${n} / 14`);
+    await user.press(
+      screen.getByRole('button', { name: n % 3 === 0 ? 'Wrong' : 'Right' }),
+    );
+  }
+
+  expect(await screen.findByText('✓ 10 / 14')).toBeTruthy();
+  expect(speaker.spoken.map((u) => u.text)).toEqual(ORAL_PROMPTS);
+  expect(speaker.spoken.every((u) => u.language === 'en')).toBe(true);
+});
+
+test('the Oral 🔊 button says the prompt again, and the picture prompt shows its scene', async () => {
+  const { speaker, user } = await renderApp();
+  await user.press(screen.getByRole('button', { name: 'Oral' }));
+  for (let n = 1; n <= 8; n++) {
+    await screen.findByText(`${n} / 14`);
+    await user.press(screen.getByRole('button', { name: 'Right' }));
+  }
+  await screen.findByText('9 / 14');
+
+  await user.press(screen.getByRole('button', { name: 'Hear again' }));
+
+  expect(speaker.spoken.slice(-2).map((u) => u.text)).toEqual([
+    'Look at the picture. What do you see?',
+    'Look at the picture. What do you see?',
+  ]);
+  expect(screen.getByText('What do you see?')).toBeTruthy();
+  const scene = within(screen.getByTestId('scene'))
+    .getAllByText(/.+/u)
+    .map((node) => node.children.map((raw) => raw.props['text']).join(''));
+  expect(scene).toEqual(['🌳', '🏠', '☀️', '🐕', '👦']);
+});
+
+test('the back button leaves Oral for Home and stops the voice', async () => {
+  const { speaker, backButton, user } = await renderApp();
+  await user.press(screen.getByRole('button', { name: 'Oral' }));
+  await screen.findByText('1 / 14');
+
+  backButton.press();
+
+  await waitFor(() => expect(screen.queryByText('1 / 14')).toBeNull());
+  expect(speaker.log.at(-1)).toBe('stop');
+  expect(screen.getByRole('button', { name: 'Oral' })).toBeTruthy();
+});
+
+test('an Oral prompt marked ✗ in 2 sessions is a weak spot labelled Oral; one marked ✗ once is not', async () => {
+  const { backButton, user } = await renderApp();
+  for (const wrong of [
+    ["What is your father's name?"],
+    ["What is your father's name?", 'Which animal says moo?'],
+  ]) {
+    await user.press(await screen.findByRole('button', { name: 'Oral' }));
+    for (const prompt of ORAL_PROMPTS) {
+      await screen.findByText(`${ORAL_PROMPTS.indexOf(prompt) + 1} / 14`);
+      await user.press(
+        screen.getByRole('button', {
+          name: wrong.includes(prompt) ? 'Wrong' : 'Right',
+        }),
+      );
+    }
+    await screen.findByText(/^✓ \d+ \/ 14$/);
+    backButton.press();
+  }
+
+  await user.press(await screen.findByRole('button', { name: 'Parent' }));
+
+  expect(await screen.findByText("father's name · Oral")).toBeTruthy();
+  expect(screen.queryByText(/animal that says moo/)).toBeNull();
+  expect(screen.getAllByText(/ · Oral$/)).toHaveLength(1);
+});
+
+test('Oral has no stars on Home and no levels on the Parent screen', async () => {
+  const { user } = await renderApp();
+  const tile = screen.getByRole('button', { name: 'Oral' });
+
+  expect(within(tile).queryAllByText('⭐')).toHaveLength(0);
+
+  await user.press(screen.getByRole('button', { name: 'Parent' }));
+  await screen.findByRole('image', { name: 'Numbers level 1, 0 of 3 stars' });
+  expect(screen.queryAllByRole('image', { name: /^Oral/ })).toHaveLength(0);
+});
+
 /** श, ष and स sound the same; each is named after its picture word. */
 const SIBILANTS: Record<string, string> = {
   श: 'शलगम वाला श',
@@ -2053,7 +2163,7 @@ function optionTiles() {
   return screen.queryAllByRole('button').filter((node) => {
     const label = String(node.props['accessibilityLabel'] ?? '');
     return (
-      !['Hear again', 'Parent', 'Mock Test'].includes(label) &&
+      !['Hear again', 'Parent', 'Mock Test', 'Oral'].includes(label) &&
       !label.includes(',')
     );
   });

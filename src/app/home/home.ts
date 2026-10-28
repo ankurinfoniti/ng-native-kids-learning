@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { Pressable, SafeAreaView, Text, View } from '@ng-native/components';
 import { NativeRouterLink } from '@ng-native/router';
 import { AREAS } from '../content/areas.ts';
+import { ORAL } from '../content/oral.ts';
 import { Progress } from '../progress/progress.ts';
 
 @Component({
@@ -39,6 +40,16 @@ import { Progress } from '../progress/progress.ts';
         >
           <text class="tile-emoji">📝</text>
           <text class="tile-name">Mock Test</text>
+        </pressable>
+        <pressable
+          accessibilityRole="button"
+          [accessibilityLabel]="oral.name"
+          class="tile"
+          [style]="{ backgroundColor: oral.colour }"
+          nativeRouterLink="/oral"
+        >
+          <text class="tile-emoji">{{ oral.emoji }}</text>
+          <text class="tile-name">{{ oral.name }}</text>
         </pressable>
       </view>
       <pressable
@@ -111,5 +122,6 @@ import { Progress } from '../progress/progress.ts';
 })
 export class Home {
   protected readonly areas = AREAS;
+  protected readonly oral = ORAL;
   protected readonly progress = inject(Progress);
 }

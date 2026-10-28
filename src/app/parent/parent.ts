@@ -7,6 +7,7 @@ import {
   View,
 } from '@ng-native/components';
 import { AREAS, areaById } from '../content/areas.ts';
+import { ORAL } from '../content/oral.ts';
 import { Progress } from '../progress/progress.ts';
 import { mockScores } from '../results/mock-results.ts';
 
@@ -215,7 +216,10 @@ export class Parent {
   protected readonly weakItems = computed(() =>
     this.progress.weakItems().map((item) => ({
       ...item,
-      areaName: areaById(item.area)?.name ?? item.area,
+      areaName:
+        item.area === ORAL.id
+          ? ORAL.name
+          : (areaById(item.area)?.name ?? item.area),
     })),
   );
   protected readonly mockTests = computed(() =>
