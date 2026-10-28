@@ -967,6 +967,279 @@ test('Concepts level 4 asks for one thing on, under, in or out of another, among
   ).toBeTruthy();
 });
 
+test('General awareness lists three levels and level 1 asks about fruits and vegetables, among 3 emoji tiles', async () => {
+  const { speaker, user } = await renderApp(
+    undefined,
+    new SeededRandom(AWARENESS_SEED),
+  );
+  expect(
+    screen.getByRole('button', { name: 'General awareness, 0 of 3 stars' }),
+  ).toBeTruthy();
+  await user.press(
+    screen.getByRole('button', { name: /^General awareness, / }),
+  );
+  for (const level of [2, 3]) {
+    expect(
+      await screen.findByRole('button', { name: `Level ${level}, locked` }),
+    ).toBeTruthy();
+  }
+  await user.press(screen.getByRole('button', { name: /^Level 1, \d/ }));
+  const asked = new Set<string>();
+  let lookAlikes = 0;
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    const text = speaker.lastSpoken!.text;
+    expect(speaker.lastSpoken?.language).toBe('en');
+    asked.add(
+      text.startsWith('Tap the ')
+        ? 'name'
+        : text.includes(' not ')
+          ? 'odd'
+          : 'category',
+    );
+    const tiles = optionTiles();
+    expect(tiles).toHaveLength(3);
+    for (const node of tiles) {
+      expect([...FRUITS, ...VEGETABLES]).toContain(
+        node.props['accessibilityLabel'],
+      );
+      expect(tileGlyph(node)).toMatch(/\p{Emoji_Presentation}|\uFE0F/u);
+    }
+    const name = /^Tap the (.+)$/.exec(text)?.[1];
+    if (name && RED_ROUND.includes(name)) {
+      lookAlikes++;
+      expect(
+        tiles.map((node) => node.props['accessibilityLabel']).sort(),
+      ).toEqual([...RED_ROUND].sort());
+    }
+    await user.press(awarenessAnswer(text));
+  }
+
+  expect([...asked].sort()).toEqual(['category', 'name', 'odd']);
+  expect(lookAlikes).toBeGreaterThan(0);
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+test('General awareness level 2 asks which animal or bird makes a sound, among 4 animals and birds', async () => {
+  const { speaker, user } = await renderApp(
+    awarenessUnlockedStore(),
+    new SeededRandom(AWARENESS_SEED),
+  );
+  await startLevel(user, 2, 'General awareness');
+  let sounds = 0;
+  let birds = 0;
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    const text = speaker.lastSpoken!.text;
+    const tiles = optionTiles();
+    expect(tiles).toHaveLength(4);
+    for (const node of tiles) {
+      expect([...ANIMALS, ...BIRDS]).toContain(
+        node.props['accessibilityLabel'],
+      );
+    }
+    const sound = /^Which (animal|bird) says (.+)\?$/.exec(text);
+    if (sound) {
+      sounds++;
+      const maker = SOUNDS[sound[2]!]!;
+      expect(sound[1] === 'bird').toBe(BIRDS.includes(maker));
+      await user.press(screen.getByRole('button', { name: maker }));
+      continue;
+    }
+    if (text === 'Which one is a bird?') birds++;
+    await user.press(awarenessAnswer(text));
+  }
+
+  expect(sounds).toBeGreaterThan(0);
+  expect(birds).toBeGreaterThan(0);
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+test('General awareness level 3 asks for body parts among body parts, and for vehicles and family members', async () => {
+  const { speaker, user } = await renderApp(
+    awarenessUnlockedStore(),
+    new SeededRandom(AWARENESS_SEED),
+  );
+  await startLevel(user, 3, 'General awareness');
+  const asked = new Set<string>();
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    const text = speaker.lastSpoken!.text;
+    const labels = optionTiles().map((node) =>
+      String(node.props['accessibilityLabel']),
+    );
+    expect(labels).toHaveLength(4);
+    const name = /^Tap the (.+)$/.exec(text)?.[1];
+    const list = [BODY_PARTS, VEHICLES, FAMILY].find((l) =>
+      l.includes(name ?? labels[0]!),
+    )!;
+    for (const label of labels) expect(list).toContain(label);
+    if (name && BODY_PARTS.includes(name)) asked.add('body part');
+    if (name && FAMILY.includes(name)) asked.add('family');
+    if (!name) asked.add('vehicle kind');
+    await user.press(awarenessAnswer(text));
+  }
+
+  expect([...asked].sort()).toEqual(['body part', 'family', 'vehicle kind']);
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+const FRUITS = [
+  'apple',
+  'banana',
+  'mango',
+  'orange',
+  'watermelon',
+  'strawberry',
+  'pineapple',
+  'cherry',
+  'pear',
+  'coconut',
+];
+const VEGETABLES = [
+  'tomato',
+  'carrot',
+  'potato',
+  'onion',
+  'brinjal',
+  'corn',
+  'cucumber',
+  'broccoli',
+  'garlic',
+  'chilli',
+];
+/** 🍎 🍅 🍒, offered together. */
+const RED_ROUND = ['apple', 'tomato', 'cherry'];
+const ANIMALS = [
+  'cow',
+  'dog',
+  'cat',
+  'lion',
+  'tiger',
+  'leopard',
+  'sheep',
+  'horse',
+  'pig',
+  'goat',
+  'elephant',
+  'monkey',
+  'frog',
+  'snake',
+  'giraffe',
+  'zebra',
+  'rabbit',
+  'camel',
+];
+const BIRDS = [
+  'parrot',
+  'peacock',
+  'duck',
+  'owl',
+  'eagle',
+  'hen',
+  'rooster',
+  'penguin',
+  'flamingo',
+  'swan',
+];
+/** Who makes each sound. */
+const SOUNDS: Record<string, string> = {
+  moo: 'cow',
+  woof: 'dog',
+  meow: 'cat',
+  roar: 'lion',
+  baa: 'sheep',
+  neigh: 'horse',
+  oink: 'pig',
+  maa: 'goat',
+  croak: 'frog',
+  hiss: 'snake',
+  quack: 'duck',
+  hoot: 'owl',
+  cluck: 'hen',
+  'cock-a-doodle-doo': 'rooster',
+};
+const BODY_PARTS = [
+  'nose',
+  'ear',
+  'eye',
+  'mouth',
+  'tongue',
+  'tooth',
+  'hand',
+  'foot',
+  'leg',
+];
+const SKY = ['aeroplane', 'helicopter', 'rocket'];
+const WATER = ['boat', 'ship', 'speedboat', 'canoe'];
+const ROAD = [
+  'car',
+  'bus',
+  'trolley bus',
+  'van',
+  'bicycle',
+  'auto rickshaw',
+  'truck',
+  'scooter',
+  'tractor',
+];
+const VEHICLES = [...ROAD, ...SKY, ...WATER];
+const FAMILY = [
+  'grandmother',
+  'grandfather',
+  'mother',
+  'father',
+  'sister',
+  'brother',
+  'baby',
+];
+
+/** What each "Which one ...?" picks out. */
+const CATEGORIES: Record<string, readonly string[]> = {
+  'is a fruit': FRUITS,
+  'is a vegetable': VEGETABLES,
+  'is a bird': BIRDS,
+  'flies in the sky': SKY,
+  'goes on water': WATER,
+  'goes on the road': ROAD,
+};
+
+/** The tile a child who knew the answer would tap, checking it is the only one that fits. */
+function awarenessAnswer(text: string) {
+  const name = /^Tap the (.+)$/.exec(text)?.[1];
+  if (name) return screen.getByRole('button', { name });
+  const category = /^Which one (.+)\?$/.exec(text)![1]!;
+  const negated = category.startsWith('is not ');
+  const members = CATEGORIES[category.replace('is not ', 'is ')]!;
+  const fits = optionTiles().filter(
+    (node) =>
+      members.includes(String(node.props['accessibilityLabel'])) !== negated,
+  );
+  expect(fits).toHaveLength(1);
+  return fits[0]!;
+}
+
+/** A seed whose General awareness rounds ask every kind of question, including one with look-alikes. */
+const AWARENESS_SEED = 15;
+
+/** General awareness levels 2 and 3 opened, as after two 3-star rounds. */
+function awarenessUnlockedStore() {
+  return new InMemoryProgressStore({
+    version: 1,
+    bestStars: { awareness: { 1: 3, 2: 3 } },
+    unlocked: { awareness: [2, 3] },
+  });
+}
+
 /** The glyphs of a picture tile, top to bottom. */
 function sceneGlyphs(name: string) {
   const tile = screen.getByRole('button', { name });

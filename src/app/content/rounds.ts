@@ -1,5 +1,10 @@
 import type { Random } from '../random.ts';
 import {
+  awarenessLevel1,
+  awarenessLevel2,
+  awarenessLevel3,
+} from './awareness.ts';
+import {
   conceptsLevel1,
   conceptsLevel2,
   conceptsLevel3,
@@ -27,6 +32,11 @@ const LEVELS: Record<string, Record<number, (random: Random) => Question[]>> = {
     2: conceptsLevel2,
     3: conceptsLevel3,
     4: conceptsLevel4,
+  },
+  awareness: {
+    1: awarenessLevel1,
+    2: awarenessLevel2,
+    3: awarenessLevel3,
   },
 };
 
