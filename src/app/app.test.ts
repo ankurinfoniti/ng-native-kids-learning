@@ -103,6 +103,10 @@ class InMemoryProgressStore implements ProgressStore {
   async save(doc: ProgressDoc): Promise<void> {
     this.saved = JSON.stringify(doc);
   }
+
+  async clear(): Promise<void> {
+    this.saved = null;
+  }
 }
 
 async function renderApp(
@@ -476,6 +480,131 @@ test('progress survives a fresh render with the same store', async () => {
   ).toBeTruthy();
   expect(
     screen.getByRole('button', { name: 'Level 2, 0 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+test('the Parent button on Home opens best stars for every area and level', async () => {
+  const { user } = await renderApp(
+    new InMemoryProgressStore({
+      version: 1,
+      bestStars: { numbers: { 1: 3, 2: 2 }, english: { 1: 1 } },
+      unlocked: { numbers: [2, 3] },
+    }),
+  );
+
+  await user.press(screen.getByRole('button', { name: 'Parent' }));
+
+  for (const name of [
+    'Numbers level 1, 3 of 3 stars',
+    'Numbers level 2, 2 of 3 stars',
+    'Numbers level 3, 0 of 3 stars',
+    'English level 1, 1 of 3 stars',
+    'English level 4, 0 of 3 stars',
+    'Concepts level 4, 0 of 3 stars',
+    'General awareness level 3, 0 of 3 stars',
+    'Reasoning level 3, 0 of 3 stars',
+    'Hindi level 2, 0 of 3 stars',
+  ]) {
+    expect(await screen.findByRole('image', { name })).toBeTruthy();
+  }
+  expect(screen.getByText('No weak spots yet')).toBeTruthy();
+});
+
+test('a number missed first time in 2 rounds is a weak spot on the Parent screen; one missed once is not', async () => {
+  const { speaker, backButton, user } = await renderApp();
+  await startLevel1(user);
+  await playRoundMissing(user, speaker, [7]);
+  backButton.press();
+  await replayLevel1(user);
+  await playRoundMissing(user, speaker, [7, 3]);
+  backButton.press();
+  backButton.press();
+
+  await user.press(await screen.findByRole('button', { name: 'Parent' }));
+
+  expect(await screen.findByText('7 · Numbers')).toBeTruthy();
+  expect(screen.queryByText('3 · Numbers')).toBeNull();
+  expect(screen.queryByText('No weak spots yet')).toBeNull();
+});
+
+test('a weak spot stays after 2 right first tries in a row and leaves after 3', async () => {
+  const { speaker, backButton, user } = await renderApp();
+  await startLevel1(user);
+  for (const missed of [[7], [7], []]) {
+    await playRoundMissing(user, speaker, missed);
+    backButton.press();
+    await replayLevel1(user);
+  }
+  await playRoundMissing(user, speaker, []);
+  backButton.press();
+  backButton.press();
+  await user.press(await screen.findByRole('button', { name: 'Parent' }));
+
+  expect(await screen.findByText('7 · Numbers')).toBeTruthy();
+
+  backButton.press();
+  await waitFor(() => expect(screen.queryByText('Weak spots')).toBeNull());
+  await startLevel1(user);
+  await playRoundMissing(user, speaker, []);
+  backButton.press();
+  backButton.press();
+  await user.press(await screen.findByRole('button', { name: 'Parent' }));
+
+  expect(await screen.findByText('No weak spots yet')).toBeTruthy();
+  expect(screen.queryByText('7 · Numbers')).toBeNull();
+});
+
+test('Reset progress asks first, and only clears the saved stars and weak spots once confirmed', async () => {
+  const store = new InMemoryProgressStore({
+    version: 1,
+    bestStars: { numbers: { 1: 3 } },
+    unlocked: { numbers: [2] },
+    items: {
+      'number:7': {
+        area: 'numbers',
+        name: '7',
+        recent: [false, false],
+        streak: 0,
+        weak: true,
+      },
+    },
+  });
+  const { backButton, user } = await renderApp(store);
+  await user.press(screen.getByRole('button', { name: 'Parent' }));
+  await user.press(
+    await screen.findByRole('button', { name: 'Reset progress' }),
+  );
+
+  expect(screen.getByText('Clear all stars and weak spots?')).toBeTruthy();
+  await user.press(screen.getByRole('button', { name: 'Cancel' }));
+
+  expect(screen.queryByText('Clear all stars and weak spots?')).toBeNull();
+  expect(
+    screen.getByRole('image', { name: 'Numbers level 1, 3 of 3 stars' }),
+  ).toBeTruthy();
+  expect(screen.getByText('7 · Numbers')).toBeTruthy();
+
+  await user.press(screen.getByRole('button', { name: 'Reset progress' }));
+  await user.press(screen.getByRole('button', { name: 'Yes, reset' }));
+
+  expect(
+    await screen.findByRole('image', { name: 'Numbers level 1, 0 of 3 stars' }),
+  ).toBeTruthy();
+  expect(screen.getByText('No weak spots yet')).toBeTruthy();
+  expect(await store.load()).toBeNull();
+
+  backButton.press();
+  expect(
+    await screen.findByRole('button', { name: 'Numbers, 0 of 3 stars' }),
+  ).toBeTruthy();
+  cleanup();
+
+  const fresh = await renderApp(store);
+  await fresh.user.press(
+    screen.getByRole('button', { name: 'Numbers, 0 of 3 stars' }),
+  );
+  expect(
+    await screen.findByRole('button', { name: 'Level 2, locked' }),
   ).toBeTruthy();
 });
 
@@ -1683,7 +1812,7 @@ const LETTER_NAMES: Record<string, string> = {
 function optionTiles() {
   return screen.queryAllByRole('button').filter((node) => {
     const label = String(node.props['accessibilityLabel'] ?? '');
-    return label !== 'Hear again' && !label.includes(',');
+    return label !== 'Hear again' && label !== 'Parent' && !label.includes(',');
   });
 }
 
@@ -1722,6 +1851,26 @@ async function playRound(
     if (n <= 10 - firstTryCorrect) await user.press(wrongTiles(answer)[0]!);
     await user.press(tile(answer));
   }
+}
+
+/** Plays a whole round, missing the given numbers on the first try and putting them right on the second. */
+async function playRoundMissing(
+  user: User,
+  speaker: RecordingSpeaker,
+  missed: readonly number[],
+) {
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    const answer = solve(speaker);
+    if (missed.includes(answer)) await user.press(wrongTiles(answer)[0]!);
+    await user.press(tile(answer));
+  }
+  await screen.findByRole('image', { name: /of 3 stars$/ });
+}
+
+/** From the Numbers levels, after the back button left Results, into level 1 again. */
+async function replayLevel1(user: User) {
+  await user.press(await screen.findByRole('button', { name: /^Level 1, \d/ }));
 }
 
 async function finishCorrectly(

@@ -12,4 +12,8 @@ export class AsyncStorageProgressStore implements ProgressStore {
   async save(doc: ProgressDoc): Promise<void> {
     await AsyncStorage.setItem(KEY, JSON.stringify(doc));
   }
+
+  async clear(): Promise<void> {
+    await AsyncStorage.removeItem(KEY);
+  }
 }

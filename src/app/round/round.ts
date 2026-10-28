@@ -240,6 +240,14 @@ export class Round {
     const q = this.question();
     const feedback = FEEDBACK[q.language];
     const firstTry = this.wrongIds().length === 0;
+    if (firstTry) {
+      const answer = q.options.find((option) => option.id === q.answerId)!;
+      void this.progress.recordAnswer(
+        this.area(),
+        answer,
+        optionId === q.answerId,
+      );
+    }
     if (optionId === q.answerId) {
       if (firstTry) this.score++;
       this.resolvedId.set(optionId);

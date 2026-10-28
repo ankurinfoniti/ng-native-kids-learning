@@ -31,6 +31,14 @@ import { Progress } from '../progress/progress.ts';
           </pressable>
         }
       </view>
+      <pressable
+        accessibilityRole="button"
+        accessibilityLabel="Parent"
+        class="parent"
+        nativeRouterLink="/parent"
+      >
+        <text class="parent-text">Parent</text>
+      </pressable>
     </safe-area-view>
   `,
   styles: `
@@ -78,6 +86,16 @@ import { Progress } from '../progress/progress.ts';
     }
     .empty {
       opacity: 0.2;
+    }
+    .parent {
+      align-self: flex-end;
+      padding: 8px 16px;
+      border-radius: 16px;
+      background-color: #e6e0f0;
+    }
+    .parent-text {
+      font-size: 16px;
+      color: #3a2c5a;
     }
   `,
 })

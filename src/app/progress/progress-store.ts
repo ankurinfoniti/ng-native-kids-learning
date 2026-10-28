@@ -9,6 +9,19 @@ export interface ProgressDoc {
   >;
   /** Levels opened beyond level 1, which is always open, by area. */
   readonly unlocked: Readonly<Record<string, readonly number[]>>;
+  /** How each item went on its first tries, by item id; absent from documents saved before this was tracked. */
+  readonly items?: Readonly<Record<string, ItemRecord>>;
+}
+
+export interface ItemRecord {
+  /** The area it was last asked in, and its spoken name, for the Parent screen. */
+  readonly area: string;
+  readonly name: string;
+  /** The last 5 first tries, oldest first: true when right. */
+  readonly recent: readonly boolean[];
+  /** First tries right in a row, up to the latest. */
+  readonly streak: number;
+  readonly weak: boolean;
 }
 
 /** Loads and saves the progress document. Provided by the app's entry point, and by an in-memory fake in tests. */
@@ -16,4 +29,5 @@ export abstract class ProgressStore {
   /** The saved document as stored, or null when nothing has been saved yet. */
   abstract load(): Promise<unknown>;
   abstract save(doc: ProgressDoc): Promise<void>;
+  abstract clear(): Promise<void>;
 }

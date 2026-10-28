@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { areaById } from '../content/areas.ts';
 import {
   PROGRESS_VERSION,
@@ -6,13 +6,16 @@ import {
   type ProgressDoc,
 } from './progress-store.ts';
 
+/** First tries kept per item for the weak-spot rule. */
+const RECENT = 5;
+
 const EMPTY: ProgressDoc = {
   version: PROGRESS_VERSION,
   bestStars: {},
   unlocked: {},
 };
 
-/** The child's stars and open levels, loaded on start and saved after each round. */
+/** The child's stars, open levels and weak spots, loaded on start and saved as they change. */
 @Injectable({ providedIn: 'root' })
 export class Progress {
   private readonly store = inject(ProgressStore);
@@ -43,10 +46,39 @@ export class Progress {
     return level === 1 || (this.doc().unlocked[area]?.includes(level) ?? false);
   }
 
+  /** Items to practise, in the order they were first asked. */
+  readonly weakItems = computed(() =>
+    Object.entries(this.doc().items ?? {})
+      .filter(([, item]) => item.weak)
+      .map(([id, item]) => ({ id, name: item.name, area: item.area })),
+  );
+
+  /** A first try at an item: 2 misses in its last 5 make it weak, 3 right in a row make it not. */
+  async recordAnswer(
+    area: string,
+    item: { readonly id: string; readonly name: string },
+    right: boolean,
+  ): Promise<void> {
+    await this.change((doc) => {
+      const items = doc.items ?? {};
+      const before = items[item.id];
+      const recent = [...(before?.recent ?? []), right].slice(-RECENT);
+      const streak = right ? (before?.streak ?? 0) + 1 : 0;
+      const weak = right
+        ? (before?.weak ?? false) && streak < 3
+        : recent.filter((r) => !r).length >= 2;
+      return {
+        ...doc,
+        items: {
+          ...items,
+          [item.id]: { area, name: item.name, recent, streak, weak },
+        },
+      };
+    });
+  }
+
   async record(area: string, level: number, stars: number): Promise<void> {
-    // A round finished before the saved progress arrived must not overwrite it.
-    await this.load();
-    this.doc.update((doc) => {
+    await this.change((doc) => {
       const best = doc.bestStars[area] ?? {};
       const unlocked = doc.unlocked[area] ?? [];
       const next = level + 1;
@@ -65,6 +97,19 @@ export class Progress {
           : doc.unlocked,
       };
     });
+  }
+
+  /** Back to a fresh start, as if nothing had ever been saved. */
+  async reset(): Promise<void> {
+    await this.load();
+    this.doc.set(EMPTY);
+    await this.store.clear();
+  }
+
+  private async change(update: (doc: ProgressDoc) => ProgressDoc) {
+    // A change made before the saved progress arrived must not overwrite it.
+    await this.load();
+    this.doc.update(update);
     await this.store.save(this.doc());
   }
 }
