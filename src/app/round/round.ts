@@ -17,6 +17,7 @@ import { buildRound } from '../content/rounds.ts';
 import { Progress } from '../progress/progress.ts';
 import { Random, pick } from '../random.ts';
 import { Speaker } from '../speaker.ts';
+import { VisualView } from './visual.ts';
 
 /** How long feedback stays on screen before the next question. */
 export const ADVANCE_DELAY_MS = new InjectionToken<number>('ADVANCE_DELAY_MS', {
@@ -27,7 +28,7 @@ const PRAISE = ['Well done!', 'Super!', 'Great job!', 'You got it!'];
 
 @Component({
   selector: 'app-round',
-  imports: [Pressable, SafeAreaView, Text, View],
+  imports: [Pressable, SafeAreaView, Text, View, VisualView],
   host: { style: 'flex: 1' },
   template: `
     <safe-area-view class="screen">
@@ -65,7 +66,7 @@ const PRAISE = ['Well done!', 'Super!', 'Great job!', 'You got it!'];
             [disabled]="wrongIds().includes(option.id)"
             (press)="choose(option.id)"
           >
-            <text class="tile-glyph">{{ option.glyph }}</text>
+            <app-visual [visual]="option.visual" />
             @if (celebratedId() === option.id) {
               <text testID="praise-star" class="praise-star">⭐</text>
             }
@@ -133,11 +134,6 @@ const PRAISE = ['Well done!', 'Super!', 'Great job!', 'You got it!'];
     }
     .two-up {
       flex-basis: 40%;
-    }
-    .tile-glyph {
-      font-size: 56px;
-      font-weight: 700;
-      color: #333333;
     }
     .answer {
       background-color: #7ed957;

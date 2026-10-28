@@ -1,5 +1,6 @@
 import { pick, shuffle, type Random } from '../random.ts';
 import {
+  glyph,
   optionsFor,
   ROUND_LENGTH,
   type Item,
@@ -38,7 +39,7 @@ function numberItem(n: number): Item {
   return {
     id: `number:${n}`,
     name: String(n),
-    glyph: String(n),
+    visual: glyph(String(n)),
     lookAlikes: lookAlikes(n).map((other) => `number:${other}`),
   };
 }

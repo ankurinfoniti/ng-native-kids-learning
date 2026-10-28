@@ -1,5 +1,6 @@
 import { shuffle, type Random } from '../random.ts';
 import {
+  glyph,
   optionsFor,
   ROUND_LENGTH,
   type Item,
@@ -48,7 +49,7 @@ function letterItem(
   return {
     id: `letter-${kind}:${letter}`,
     name,
-    glyph: letter,
+    visual: glyph(letter),
     lookAlikes: [...group]
       .filter((other) => other !== letter)
       .map((other) => `letter-${kind}:${other}`),
@@ -93,10 +94,10 @@ const WORDS = [
   ['zebra', '🦓'],
 ] as const;
 
-const PICTURES: readonly Item[] = WORDS.map(([word, glyph]) => ({
+const PICTURES: readonly Item[] = WORDS.map(([word, emoji]) => ({
   id: `word:${word}`,
   name: word,
-  glyph,
+  visual: glyph(emoji),
 }));
 
 interface EnglishLevel {

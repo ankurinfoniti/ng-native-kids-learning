@@ -11,12 +11,33 @@ export function starsFor(score: number): number {
   return 0;
 }
 
+export type Shape = 'circle' | 'square' | 'triangle' | 'rectangle' | 'star';
+export type Size = 'big' | 'small' | 'tall' | 'short';
+export type Place = 'on' | 'under' | 'in' | 'out';
+
+/** How an item is drawn on its tile. */
+export type Visual =
+  | { readonly kind: 'glyph'; readonly glyph: string; readonly size?: Size }
+  | { readonly kind: 'swatch'; readonly colour: string }
+  | { readonly kind: 'shape'; readonly shape: Shape }
+  /** One emoji placed against another: a cat on a box. */
+  | {
+      readonly kind: 'scene';
+      readonly subject: string;
+      readonly place: Place;
+      readonly thing: string;
+    };
+
+export function glyph(text: string): Visual {
+  return { kind: 'glyph', glyph: text };
+}
+
 export interface Item {
   /** Stable across releases, for saved progress: `number:7`. */
   readonly id: string;
   /** What is spoken, and the tile's accessibility label. */
   readonly name: string;
-  readonly glyph: string;
+  readonly visual: Visual;
   /** Ids of items that look or sound like this one, closest first, preferred as distractors. */
   readonly lookAlikes?: readonly string[];
 }

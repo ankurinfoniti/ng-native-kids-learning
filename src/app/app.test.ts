@@ -788,6 +788,214 @@ test('3 stars in English level 1 opens English level 2 only, and shows on the En
   ).toBeTruthy();
 });
 
+test('Concepts lists four levels and level 1 asks for ten colours, each tile a drawn swatch', async () => {
+  const { speaker, user } = await renderApp();
+  expect(
+    screen.getByRole('button', { name: 'Concepts, 0 of 3 stars' }),
+  ).toBeTruthy();
+  await user.press(screen.getByRole('button', { name: /^Concepts, / }));
+  for (const level of [2, 3, 4]) {
+    expect(
+      await screen.findByRole('button', { name: `Level ${level}, locked` }),
+    ).toBeTruthy();
+  }
+  await user.press(screen.getByRole('button', { name: /^Level 1, \d/ }));
+  const asked = new Set<string>();
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    const colour = /^Tap (\w+)$/.exec(speaker.lastSpoken!.text)![1]!;
+    expect(speaker.lastSpoken?.language).toBe('en');
+    asked.add(colour);
+    const tiles = optionTiles();
+    expect(tiles).toHaveLength(3);
+    for (const node of tiles) {
+      expect(COLOURS).toContain(node.props['accessibilityLabel']);
+      expect(within(node).getByTestId('swatch')).toBeTruthy();
+      expect(within(node).queryAllByText(/.+/u)).toHaveLength(0);
+    }
+    await user.press(screen.getByRole('button', { name: colour }));
+  }
+
+  expect([...asked].sort()).toEqual([...COLOURS].sort());
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+test('a colour missed twice is shown and named', async () => {
+  const { speaker, user } = await renderApp();
+  await startLevel(user, 1, 'Concepts');
+  await screen.findByText('1 / 10');
+  const colour = /^Tap (\w+)$/.exec(speaker.lastSpoken!.text)![1]!;
+  const [first, second] = optionTiles().filter(
+    (node) => node.props['accessibilityLabel'] !== colour,
+  );
+
+  await user.press(first!);
+  await user.press(second!);
+
+  expect(speaker.spoken).toContainEqual({
+    text: `This is ${colour}.`,
+    language: 'en',
+  });
+});
+
+const COLOURS = [
+  'red',
+  'blue',
+  'yellow',
+  'green',
+  'orange',
+  'purple',
+  'pink',
+  'black',
+  'white',
+  'brown',
+];
+
+test('Concepts level 2 asks for shapes among 4 drawn shapes', async () => {
+  const { speaker, user } = await renderApp(conceptsUnlockedStore());
+  await startLevel(user, 2, 'Concepts');
+  const asked = new Set<string>();
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    const shape = /^Tap the (\w+)$/.exec(speaker.lastSpoken!.text)![1]!;
+    asked.add(shape);
+    const tiles = optionTiles();
+    expect(tiles).toHaveLength(4);
+    for (const node of tiles) {
+      expect(SHAPES).toContain(node.props['accessibilityLabel']);
+      expect(within(node).getByTestId('shape')).toBeTruthy();
+    }
+    await user.press(screen.getByRole('button', { name: shape }));
+  }
+
+  expect([...asked].sort()).toEqual([...SHAPES].sort());
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+test('a shape missed twice is shown and named', async () => {
+  const { speaker, user } = await renderApp(conceptsUnlockedStore());
+  await startLevel(user, 2, 'Concepts');
+  await screen.findByText('1 / 10');
+  const shape = /^Tap the (\w+)$/.exec(speaker.lastSpoken!.text)![1]!;
+  const [first, second] = optionTiles().filter(
+    (node) => node.props['accessibilityLabel'] !== shape,
+  );
+
+  await user.press(first!);
+  await user.press(second!);
+
+  expect(speaker.spoken).toContainEqual({
+    text: `This is a ${shape}.`,
+    language: 'en',
+  });
+});
+
+const SHAPES = ['circle', 'square', 'triangle', 'rectangle', 'star'];
+
+test('Concepts level 3 asks for the big, small, tall or short one, drawn beside its opposite', async () => {
+  const { speaker, user } = await renderApp(conceptsUnlockedStore());
+  await startLevel(user, 3, 'Concepts');
+  const opposite: Record<string, string> = {
+    big: 'small',
+    small: 'big',
+    tall: 'short',
+    short: 'tall',
+  };
+  const asked = new Set<string>();
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    const [, size, thing] = /^Tap the (big|small|tall|short) (.+)$/.exec(
+      speaker.lastSpoken!.text,
+    )!;
+    asked.add(size!);
+    expect(optionTiles()).toHaveLength(4);
+    const answer = screen.getByRole('button', { name: `${size} ${thing}` });
+    const pair = screen.getByRole('button', {
+      name: `${opposite[size!]} ${thing}`,
+    });
+    expect(tileGlyph(answer)).toBe(tileGlyph(pair));
+    const larger = size === 'big' || size === 'tall';
+    expect(drawnHeight(answer) > drawnHeight(pair)).toBe(larger);
+    if (size === 'big' || size === 'small') {
+      expect(drawnWidth(answer) > drawnWidth(pair)).toBe(larger);
+    } else {
+      expect(drawnWidth(answer)).toBe(drawnWidth(pair));
+    }
+    await user.press(answer);
+  }
+
+  expect(asked.size).toBeGreaterThan(1);
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+test('Concepts level 4 asks for one thing on, under, in or out of another, among 4 pictures of the two', async () => {
+  const { speaker, user } = await renderApp(conceptsUnlockedStore());
+  await startLevel(user, 4, 'Concepts');
+  const places = ['on', 'under', 'in', 'out of'];
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    const [, subject, place, thing] =
+      /^Tap the (\w+) (on|under|in|out of) the (\w+)$/.exec(
+        speaker.lastSpoken!.text,
+      )!;
+    expect(
+      optionTiles()
+        .map((node) => node.props['accessibilityLabel'])
+        .sort(),
+    ).toEqual(places.map((p) => `${subject} ${p} the ${thing}`).sort());
+    const on = sceneGlyphs(`${subject} on the ${thing}`);
+    const under = sceneGlyphs(`${subject} under the ${thing}`);
+    expect(on).toHaveLength(2);
+    expect(under).toEqual([...on].reverse());
+    await user.press(
+      screen.getByRole('button', { name: `${subject} ${place} the ${thing}` }),
+    );
+  }
+
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+/** The glyphs of a picture tile, top to bottom. */
+function sceneGlyphs(name: string) {
+  const tile = screen.getByRole('button', { name });
+  return within(within(tile).getByTestId('scene'))
+    .getAllByText(/.+/u)
+    .map((node) => node.children.map((raw) => raw.props['text']).join(''));
+}
+
+/** A tile's glyph, as tall as its font scaled by any vertical stretch. */
+function drawnHeight(tile: ReturnType<typeof optionTiles>[number]) {
+  const text = within(tile).getAllByText(/.+/u)[0]!;
+  const transform = (text.props['transform'] ?? []) as { scaleY?: number }[];
+  const stretch = transform.find((t) => t.scaleY !== undefined)?.scaleY ?? 1;
+  return Number(text.props['fontSize']) * stretch;
+}
+
+function drawnWidth(tile: ReturnType<typeof optionTiles>[number]) {
+  return Number(within(tile).getAllByText(/.+/u)[0]!.props['fontSize']);
+}
+
+/** Concepts levels 2 to 4 opened, as after three 3-star rounds. */
+function conceptsUnlockedStore() {
+  return new InMemoryProgressStore({
+    version: 1,
+    bestStars: { concepts: { 1: 3, 2: 3, 3: 3 } },
+    unlocked: { concepts: [2, 3, 4] },
+  });
+}
+
 /** A seed whose English level 1 and 2 rounds each ask for a letter with look-alikes. */
 const ENGLISH_SEED = 1;
 
