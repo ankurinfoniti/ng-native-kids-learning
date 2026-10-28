@@ -10,6 +10,7 @@ import {
 import { expect, test } from 'vitest';
 import { App } from './app.ts';
 import { provideApp } from './app.config.ts';
+import { NOW } from './clock.ts';
 import { ProgressStore, type ProgressDoc } from './progress/progress-store.ts';
 import { ADVANCE_DELAY_MS } from './round/round.ts';
 import { Random } from './random.ts';
@@ -113,6 +114,7 @@ async function renderApp(
   store = new InMemoryProgressStore(),
   random: Random = new SequenceRandom([0.42, 0.07, 0.91, 0.66, 0.23, 0.58]),
   advanceDelay = 0,
+  now = new Date(2026, 9, 28, 9, 30),
 ) {
   const speaker = new RecordingSpeaker();
   const backButton = new FakeBackButton();
@@ -124,6 +126,7 @@ async function renderApp(
       { provide: Random, useValue: random },
       { provide: ADVANCE_DELAY_MS, useValue: advanceDelay },
       { provide: HardwareBack.SOURCE, useValue: backButton },
+      { provide: NOW, useValue: () => now },
     ],
   });
   return { speaker, backButton, store, user: userEvent.setup() };
@@ -579,10 +582,14 @@ test('Reset progress asks first, and only clears the saved stars and weak spots 
     await screen.findByRole('button', { name: 'Reset progress' }),
   );
 
-  expect(screen.getByText('Clear all stars and weak spots?')).toBeTruthy();
+  expect(
+    screen.getByText('Clear all stars, weak spots and Mock Tests?'),
+  ).toBeTruthy();
   await user.press(screen.getByRole('button', { name: 'Cancel' }));
 
-  expect(screen.queryByText('Clear all stars and weak spots?')).toBeNull();
+  expect(
+    screen.queryByText('Clear all stars, weak spots and Mock Tests?'),
+  ).toBeNull();
   expect(
     screen.getByRole('image', { name: 'Numbers level 1, 3 of 3 stars' }),
   ).toBeTruthy();
@@ -1488,6 +1495,206 @@ test('in Hindi, "Try again", the shown answer and praise are all spoken in Hindi
   expect(speaker.spoken).toContainEqual({ text: 'वाह!', language: 'hi' });
 });
 
+test('the Mock Test tile on Home starts 12 shuffled questions, 2 from each area, from any level', async () => {
+  const { speaker, user } = await renderApp(
+    undefined,
+    new SeededRandom(MOCK_SEED),
+  );
+  await user.press(screen.getByRole('button', { name: 'Mock Test' }));
+
+  const areas: string[] = [];
+  const instructions: string[] = [];
+  for (let n = 1; n <= 12; n++) {
+    await screen.findByText(`${n} / 12`);
+    areas.push(mockArea());
+    instructions.push(speaker.lastSpoken!.text);
+    await user.press(optionTiles()[0]!);
+  }
+
+  expect([...areas].sort()).toEqual(
+    MOCK_AREAS.flatMap((area) => [area, area]).sort(),
+  );
+  expect(areas).not.toEqual(MOCK_AREAS.flatMap((area) => [area, area]));
+  // Fresh progress has only level 1 open, yet later levels are asked.
+  expect(instructions.some((text) => LATER_LEVEL.test(text))).toBe(true);
+});
+
+test('a Mock Test question takes one try: a wrong tap shows and says the answer in green, with no "Try again!"', async () => {
+  const { speaker, user } = await renderApp(
+    undefined,
+    new SeededRandom(MOCK_SEED),
+    HOLD_FEEDBACK,
+  );
+  await user.press(screen.getByRole('button', { name: 'Mock Test' }));
+  await screen.findByText('1 / 12');
+  const answer = solve(speaker);
+  const [wrong, other] = wrongTiles(answer);
+
+  await user.press(wrong!);
+
+  expect(speaker.lastSpoken).toEqual({
+    text: `The answer is ${answer}.`,
+    language: 'en',
+  });
+  expect(speaker.spoken.map((u) => u.text)).not.toContain('Try again!');
+  expect(tile(answer).props['backgroundColor']).toBe(GREEN);
+  expect(wrong!.props['backgroundColor']).not.toBe(GREEN);
+  await user.press(other!);
+  expect(other!.props['backgroundColor']).not.toBe(GREEN);
+});
+
+test('a right Mock Test tap turns green and is praised', async () => {
+  const { speaker, user } = await renderApp(
+    undefined,
+    new SeededRandom(MOCK_SEED),
+    HOLD_FEEDBACK,
+  );
+  await user.press(screen.getByRole('button', { name: 'Mock Test' }));
+  await screen.findByText('1 / 12');
+  const answer = solve(speaker);
+
+  await user.press(tile(answer));
+
+  expect(tile(answer).props['backgroundColor']).toBe(GREEN);
+  expect(PRAISE).toContain(speaker.lastSpoken?.text);
+});
+
+test('a wrong Mock Test tap moves straight on to the next question', async () => {
+  const { speaker, user } = await renderApp(
+    undefined,
+    new SeededRandom(MOCK_SEED),
+  );
+  await user.press(screen.getByRole('button', { name: 'Mock Test' }));
+  await screen.findByText('1 / 12');
+
+  await user.press(wrongTiles(solve(speaker))[0]!);
+
+  expect(await screen.findByText('2 / 12')).toBeTruthy();
+});
+
+test('Mock Results show the score out of 12 and each area out of 2, and speak the score', async () => {
+  const { speaker, user } = await renderApp(
+    undefined,
+    new SeededRandom(MOCK_SEED),
+  );
+  await user.press(screen.getByRole('button', { name: 'Mock Test' }));
+
+  const taps = await playMock(user, speaker);
+
+  const total = taps.filter((tap) => tap.right).length;
+  expect(total).toBeGreaterThan(0);
+  expect(total).toBeLessThan(12);
+  for (const [area, name] of Object.entries(AREA_NAMES)) {
+    const right = taps.filter((tap) => tap.area === area && tap.right).length;
+    expect(await screen.findByText(`${name}: ${right} / 2`)).toBeTruthy();
+  }
+  expect(screen.getByText(`${total} / 12`)).toBeTruthy();
+  expect(speaker.lastSpoken).toEqual({
+    text: `You got ${total} out of 12!`,
+    language: 'en',
+  });
+});
+
+test('each Mock Test is saved with its date and breakdown, and listed on the Parent screen newest first', async () => {
+  const store = new InMemoryProgressStore({
+    version: 1,
+    bestStars: {},
+    unlocked: {},
+    mockTests: [
+      {
+        takenAt: new Date(2026, 9, 1, 18, 0).getTime(),
+        total: 5,
+        areas: {
+          english: { right: 1, of: 2 },
+          numbers: { right: 2, of: 2 },
+          concepts: { right: 0, of: 2 },
+          awareness: { right: 1, of: 2 },
+          reasoning: { right: 1, of: 2 },
+          hindi: { right: 0, of: 2 },
+        },
+      },
+    ],
+  });
+  const first = await renderApp(
+    store,
+    new SeededRandom(MOCK_SEED),
+    0,
+    new Date(2026, 9, 28, 9, 30),
+  );
+  await first.user.press(screen.getByRole('button', { name: 'Mock Test' }));
+  const taps = await playMock(first.user, first.speaker);
+  const total = taps.filter((tap) => tap.right).length;
+  const english = taps.filter((t) => t.area === 'english' && t.right).length;
+  await screen.findByText(`English: ${english} / 2`);
+  cleanup();
+
+  const { user } = await renderApp(store);
+  await user.press(screen.getByRole('button', { name: 'Parent' }));
+
+  const rows = (await screen.findAllByText(/^\d+ \w+ \d{4}: \d+ \/ 12$/)).map(
+    (node) => node.children.map((raw) => raw.props['text']).join(''),
+  );
+  expect(rows).toEqual([`28 Oct 2026: ${total} / 12`, '1 Oct 2026: 5 / 12']);
+  const breakdowns = screen
+    .getAllByText(/^English \d\/2 · /)
+    .map((node) => node.children.map((raw) => raw.props['text']).join(''));
+  expect(breakdowns).toEqual([
+    MOCK_AREAS.map((area) => {
+      const right = taps.filter((t) => t.area === area && t.right).length;
+      return `${AREA_NAMES[area]} ${right}/2`;
+    }).join(' · '),
+    'English 1/2 · Numbers 2/2 · Concepts 0/2 · General awareness 1/2 · Reasoning 1/2 · Hindi 0/2',
+  ]);
+});
+
+test('the Parent screen says when no Mock Test has been taken', async () => {
+  const { user } = await renderApp();
+  await user.press(screen.getByRole('button', { name: 'Parent' }));
+
+  expect(await screen.findByText('No Mock Tests yet')).toBeTruthy();
+});
+
+test('a Mock Test miss counts toward weak spots: a number missed once before becomes weak', async () => {
+  const missedBefore = Object.fromEntries(
+    Array.from({ length: 50 }, (_, i) => [
+      `number:${i + 1}`,
+      {
+        area: 'numbers',
+        name: String(i + 1),
+        recent: [false],
+        streak: 0,
+        weak: false,
+      },
+    ]),
+  );
+  const { speaker, backButton, user } = await renderApp(
+    new InMemoryProgressStore({
+      version: 1,
+      bestStars: {},
+      unlocked: {},
+      items: missedBefore,
+    }),
+    new SeededRandom(MOCK_SEED),
+  );
+  await user.press(screen.getByRole('button', { name: 'Mock Test' }));
+
+  const missed: number[] = [];
+  await playMock(user, speaker, (area) => {
+    if (area !== 'numbers') return optionTiles()[0]!;
+    missed.push(solve(speaker));
+    return wrongTiles(missed.at(-1)!)[0]!;
+  });
+  await screen.findByText(/^Numbers: 0 \/ 2$/);
+  backButton.press();
+  await user.press(await screen.findByRole('button', { name: 'Parent' }));
+
+  expect(missed).toHaveLength(2);
+  for (const n of missed) {
+    expect(await screen.findByText(`${n} · Numbers`)).toBeTruthy();
+  }
+  expect(screen.getAllByText(/ · Numbers$/)).toHaveLength(2);
+});
+
 /** श, ष and स sound the same; each is named after its picture word. */
 const SIBILANTS: Record<string, string> = {
   श: 'शलगम वाला श',
@@ -1845,9 +2052,76 @@ const LETTER_NAMES: Record<string, string> = {
 function optionTiles() {
   return screen.queryAllByRole('button').filter((node) => {
     const label = String(node.props['accessibilityLabel'] ?? '');
-    return label !== 'Hear again' && label !== 'Parent' && !label.includes(',');
+    return (
+      !['Hear again', 'Parent', 'Mock Test'].includes(label) &&
+      !label.includes(',')
+    );
   });
 }
+
+/** Every area, in Home order. */
+const MOCK_AREAS = [
+  'english',
+  'numbers',
+  'concepts',
+  'awareness',
+  'reasoning',
+  'hindi',
+];
+
+/** A seed whose Mock Test opens with a Numbers question and asks something from beyond level 1. */
+const MOCK_SEED = 3;
+
+/** Instructions only levels after the first ask. */
+const LATER_LEVEL =
+  /^(What comes between|Which is the (biggest|smallest)|Find small|Which one starts with|Which one is different|What comes next|Which \w+ says)/;
+
+/** The area the question on screen comes from. */
+function mockArea(): string {
+  return MOCK_AREAS.find((area) => screen.queryByTestId(`question-${area}`))!;
+}
+
+const AREA_NAMES: Record<string, string> = {
+  english: 'English',
+  numbers: 'Numbers',
+  concepts: 'Concepts',
+  awareness: 'General awareness',
+  reasoning: 'Reasoning',
+  hindi: 'Hindi',
+};
+
+/** Plays a whole Mock Test, tapping the tile picked for each question (the first by default); returns each area asked and whether the tap was praised. */
+async function playMock(
+  user: User,
+  speaker: RecordingSpeaker,
+  pickTile: (area: string) => ReturnType<typeof optionTiles>[number] = () =>
+    optionTiles()[0]!,
+) {
+  const taps: { area: string; right: boolean }[] = [];
+  for (let n = 1; n <= 12; n++) {
+    await screen.findByText(`${n} / 12`);
+    const area = mockArea();
+    const before = speaker.spoken.length;
+    await user.press(pickTile(area));
+    const feedback = speaker.spoken[before]!.text;
+    taps.push({ area, right: PRAISE.includes(feedback) });
+  }
+  return taps;
+}
+
+/** The colour of a tile shown as the answer. */
+const GREEN = 'rgb(126, 217, 87)';
+
+const PRAISE = [
+  'Well done!',
+  'Super!',
+  'Great job!',
+  'You got it!',
+  'शाबाश!',
+  'बहुत अच्छे!',
+  'बढ़िया!',
+  'वाह!',
+];
 
 function tileGlyph(node: ReturnType<typeof optionTiles>[number]) {
   return within(node)

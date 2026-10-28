@@ -30,6 +30,16 @@ import { Progress } from '../progress/progress.ts';
             </view>
           </pressable>
         }
+        <pressable
+          accessibilityRole="button"
+          accessibilityLabel="Mock Test"
+          class="tile"
+          [style]="{ backgroundColor: '#ff8a80' }"
+          nativeRouterLink="/mock"
+        >
+          <text class="tile-emoji">📝</text>
+          <text class="tile-name">Mock Test</text>
+        </pressable>
       </view>
       <pressable
         accessibilityRole="button"

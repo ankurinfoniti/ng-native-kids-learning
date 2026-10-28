@@ -2,6 +2,7 @@ import {
   Component,
   DestroyRef,
   InjectionToken,
+  booleanAttribute,
   computed,
   effect,
   inject,
@@ -12,8 +13,9 @@ import {
 } from '@angular/core';
 import { Pressable, SafeAreaView, Text, View } from '@ng-native/components';
 import { NativeNavigation } from '@ng-native/router';
+import { NOW } from '../clock.ts';
 import { starsFor } from '../content/question.ts';
-import { buildRound } from '../content/rounds.ts';
+import { buildMockTest, buildRound } from '../content/rounds.ts';
 import { Progress } from '../progress/progress.ts';
 import { Random, pick } from '../random.ts';
 import { Speaker, type Language } from '../speaker.ts';
@@ -43,7 +45,7 @@ const FEEDBACK: Record<
   imports: [Pressable, SafeAreaView, Text, View, VisualView],
   host: { style: 'flex: 1' },
   template: `
-    <safe-area-view class="screen">
+    <safe-area-view class="screen" [testID]="'question-' + current().area">
       @let q = question();
       <view class="top">
         <text class="progress"
@@ -193,33 +195,38 @@ const FEEDBACK: Record<
   `,
 })
 export class Round {
-  readonly area = input.required<string>();
-  readonly level = input.required<number, unknown>({
-    transform: numberAttribute,
-  });
+  readonly area = input('');
+  readonly level = input(0, { transform: numberAttribute });
+  /** Set by the Mock Test route: questions from every area. */
+  readonly mock = input(false, { transform: booleanAttribute });
 
   private readonly speaker = inject(Speaker);
   private readonly random = inject(Random);
   private readonly nav = inject(NativeNavigation);
   private readonly progress = inject(Progress);
   private readonly advanceDelay = inject(ADVANCE_DELAY_MS);
+  private readonly now = inject(NOW);
 
   protected readonly questions = computed(() => {
+    if (this.mock()) return buildMockTest(this.random);
     const area = this.area();
     // Read once: answers in this round must not rebuild it.
     const weak = untracked(this.progress.weakItems)
       .filter((item) => item.area === area)
       .map((item) => item.id);
-    return buildRound(area, this.level(), this.random, new Set(weak));
+    return buildRound(area, this.level(), this.random, new Set(weak)).map(
+      (question) => ({ area, question }),
+    );
   });
   protected readonly index = signal(0);
-  protected readonly question = computed(() => this.questions()[this.index()]!);
+  protected readonly current = computed(() => this.questions()[this.index()]!);
+  protected readonly question = computed(() => this.current().question);
   /** The tile shown as the answer once the question is settled. */
   protected readonly resolvedId = signal<string | null>(null);
   protected readonly wrongIds = signal<readonly string[]>([]);
   /** The tile the child tapped right, which bounces and sends up a star. */
   protected readonly celebratedId = signal<string | null>(null);
-  private score = 0;
+  private readonly firstTries: { area: string; right: boolean }[] = [];
   private finished = false;
   private advanceTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -242,24 +249,21 @@ export class Round {
 
   protected choose(optionId: string): void {
     if (this.resolvedId() || this.wrongIds().includes(optionId)) return;
-    const q = this.question();
+    const { area, question: q } = this.current();
     const feedback = FEEDBACK[q.language];
     const firstTry = this.wrongIds().length === 0;
     if (firstTry) {
       const answer = q.options.find((option) => option.id === q.answerId)!;
-      void this.progress.recordAnswer(
-        this.area(),
-        answer,
-        optionId === q.answerId,
-      );
+      const right = optionId === q.answerId;
+      this.firstTries.push({ area, right });
+      void this.progress.recordAnswer(area, answer, right);
     }
     if (optionId === q.answerId) {
-      if (firstTry) this.score++;
       this.resolvedId.set(optionId);
       this.celebratedId.set(optionId);
       this.speaker.speak(pick(this.random, feedback.praise), q.language);
       this.advance();
-    } else if (firstTry) {
+    } else if (firstTry && !this.mock()) {
       this.wrongIds.set([optionId]);
       this.speaker.speak(feedback.tryAgain, q.language);
     } else {
@@ -281,12 +285,30 @@ export class Round {
       }
       this.finished = true;
       this.speaker.stop();
-      void this.progress.record(
-        this.area(),
-        this.level(),
-        starsFor(this.score),
-      );
-      void this.nav.replace(['/results', this.score]);
+      if (this.mock()) this.finishMock();
+      else this.finishRound();
     }, this.advanceDelay);
+  }
+
+  private finishRound(): void {
+    const score = this.firstTries.filter((t) => t.right).length;
+    void this.progress.record(this.area(), this.level(), starsFor(score));
+    void this.nav.replace(['/results', score]);
+  }
+
+  private finishMock(): void {
+    const areas: Record<string, { right: number; of: number }> = {};
+    for (const { area, right } of this.firstTries) {
+      const score = (areas[area] ??= { right: 0, of: 0 });
+      score.of++;
+      if (right) score.right++;
+    }
+    const takenAt = this.now().getTime();
+    void this.progress.recordMock({
+      takenAt,
+      total: this.firstTries.filter((t) => t.right).length,
+      areas,
+    });
+    void this.nav.replace(['/mock-results', takenAt]);
   }
 }

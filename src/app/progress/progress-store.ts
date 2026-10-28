@@ -11,6 +11,21 @@ export interface ProgressDoc {
   readonly unlocked: Readonly<Record<string, readonly number[]>>;
   /** How each item went on its first tries, by item id; absent from documents saved before this was tracked. */
   readonly items?: Readonly<Record<string, ItemRecord>>;
+  /** Mock Tests taken, oldest first; absent from documents saved before Mock Tests existed. */
+  readonly mockTests?: readonly MockResult[];
+}
+
+export interface MockResult {
+  /** When it ended, in milliseconds since 1970. */
+  readonly takenAt: number;
+  readonly total: number;
+  /** Right answers out of questions asked, by area. */
+  readonly areas: Readonly<Record<string, AreaScore>>;
+}
+
+export interface AreaScore {
+  readonly right: number;
+  readonly of: number;
 }
 
 export interface ItemRecord {

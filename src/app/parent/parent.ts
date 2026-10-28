@@ -8,6 +8,7 @@ import {
 } from '@ng-native/components';
 import { AREAS, areaById } from '../content/areas.ts';
 import { Progress } from '../progress/progress.ts';
+import { mockScores } from '../results/mock-results.ts';
 
 @Component({
   selector: 'app-parent',
@@ -58,9 +59,23 @@ import { Progress } from '../progress/progress.ts';
           <text class="note">No weak spots yet</text>
         }
 
+        <text class="heading">Mock Tests</text>
+        @for (test of mockTests(); track test.takenAt) {
+          <view class="mock">
+            <text class="mock-total"
+              >{{ test.date }}: {{ test.total }} / {{ test.of }}</text
+            >
+            <text class="note">{{ test.breakdown }}</text>
+          </view>
+        } @empty {
+          <text class="note">No Mock Tests yet</text>
+        }
+
         @if (confirming()) {
           <view class="confirm">
-            <text class="confirm-text">Clear all stars and weak spots?</text>
+            <text class="confirm-text"
+              >Clear all stars, weak spots and Mock Tests?</text
+            >
             <view class="confirm-buttons">
               <pressable
                 accessibilityRole="button"
@@ -148,6 +163,14 @@ import { Progress } from '../progress/progress.ts';
       font-size: 20px;
       color: #3a2c5a;
     }
+    .mock {
+      gap: 2px;
+    }
+    .mock-total {
+      font-size: 20px;
+      font-weight: 700;
+      color: #3a2c5a;
+    }
     .confirm {
       gap: 12px;
     }
@@ -195,10 +218,43 @@ export class Parent {
       areaName: areaById(item.area)?.name ?? item.area,
     })),
   );
+  protected readonly mockTests = computed(() =>
+    [...this.progress.mockTests()].reverse().map((test) => {
+      const scores = mockScores(test);
+      return {
+        takenAt: test.takenAt,
+        date: formatDate(new Date(test.takenAt)),
+        total: scores.total,
+        of: scores.of,
+        breakdown: scores.areas
+          .map((area) => `${area.name} ${area.right}/${area.of}`)
+          .join(' · '),
+      };
+    }),
+  );
   protected readonly confirming = signal(false);
 
   protected reset(): void {
     this.confirming.set(false);
     void this.progress.reset();
   }
+}
+
+const MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+function formatDate(date: Date): string {
+  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
 }

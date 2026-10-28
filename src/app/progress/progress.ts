@@ -3,6 +3,7 @@ import { areaById } from '../content/areas.ts';
 import {
   PROGRESS_VERSION,
   ProgressStore,
+  type MockResult,
   type ProgressDoc,
 } from './progress-store.ts';
 
@@ -52,6 +53,16 @@ export class Progress {
       .filter(([, item]) => item.weak)
       .map(([id, item]) => ({ id, name: item.name, area: item.area })),
   );
+
+  /** Mock Tests taken, oldest first. */
+  readonly mockTests = computed(() => this.doc().mockTests ?? []);
+
+  async recordMock(result: MockResult): Promise<void> {
+    await this.change((doc) => ({
+      ...doc,
+      mockTests: [...(doc.mockTests ?? []), result],
+    }));
+  }
 
   /** A first try at an item: 2 misses in its last 5 make it weak, 3 right in a row make it not. */
   async recordAnswer(

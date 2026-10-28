@@ -1,4 +1,4 @@
-import type { Random } from '../random.ts';
+import { pick, shuffle, type Random } from '../random.ts';
 import {
   awarenessLevel1,
   awarenessLevel2,
@@ -64,4 +64,42 @@ export function buildRound(
   const build = LEVELS[area]?.[level];
   if (!build) throw new Error(`No level ${level} in area "${area}"`);
   return build(random, weak);
+}
+
+export const MOCK_LENGTH = 12;
+
+/** A question and the area it was drawn from. */
+export interface AreaQuestion {
+  readonly area: string;
+  readonly question: Question;
+}
+
+/** Questions spread as evenly as possible over every area with levels, each from any level, shuffled. */
+export function buildMockTest(random: Random): AreaQuestion[] {
+  const areas = Object.keys(LEVELS);
+  const share = Math.floor(MOCK_LENGTH / areas.length);
+  const extra = shuffle(random, areas).slice(0, MOCK_LENGTH % areas.length);
+  const questions = areas.flatMap((area) =>
+    questionsFromAnyLevel(area, share + (extra.includes(area) ? 1 : 0), random),
+  );
+  return shuffle(random, questions);
+}
+
+function questionsFromAnyLevel(
+  area: string,
+  count: number,
+  random: Random,
+): AreaQuestion[] {
+  const levels = Object.values(LEVELS[area]!);
+  const perLevel = new Map<(typeof levels)[number], number>();
+  for (let i = 0; i < count; i++) {
+    const build = pick(random, levels);
+    perLevel.set(build, (perLevel.get(build) ?? 0) + 1);
+  }
+  // One round per level keeps two questions from the same level apart.
+  return [...perLevel].flatMap(([build, n]) =>
+    build(random, new Set())
+      .slice(0, n)
+      .map((question) => ({ area, question })),
+  );
 }
