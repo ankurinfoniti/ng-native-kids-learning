@@ -18,14 +18,17 @@ import {
 } from './english.ts';
 import { hindiLevel1, hindiLevel2 } from './hindi.ts';
 import { numbersLevel1, numbersLevel2, numbersLevel3 } from './numbers.ts';
-import type { Question } from './question.ts';
+import type { Question, WeakIds } from './question.ts';
 import {
   reasoningLevel1,
   reasoningLevel2,
   reasoningLevel3,
 } from './reasoning.ts';
 
-const LEVELS: Record<string, Record<number, (random: Random) => Question[]>> = {
+const LEVELS: Record<
+  string,
+  Record<number, (random: Random, weak: WeakIds) => Question[]>
+> = {
   english: {
     1: englishLevel1,
     2: englishLevel2,
@@ -56,8 +59,9 @@ export function buildRound(
   area: string,
   level: number,
   random: Random,
+  weak: WeakIds,
 ): Question[] {
   const build = LEVELS[area]?.[level];
   if (!build) throw new Error(`No level ${level} in area "${area}"`);
-  return build(random);
+  return build(random, weak);
 }

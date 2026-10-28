@@ -1,10 +1,12 @@
-import { pick, shuffle, type Random } from '../random.ts';
+import { pick, type Random } from '../random.ts';
 import {
   glyph,
   optionsFor,
+  practiceOrder,
   ROUND_LENGTH,
   type Item,
   type Question,
+  type WeakIds,
 } from './question.ts';
 
 /** Numbers a child mixes up with n, closest first: 6 and 9 turned over, digits swapped (12/21), then its neighbours. */
@@ -127,11 +129,14 @@ function numbersRound(
   level: NumbersLevel,
   templates: readonly Template[],
   random: Random,
+  weak: WeakIds,
 ): Question[] {
   const pool = Array.from({ length: level.max }, (_, i) => numberItem(i + 1));
-  const answers = shuffle(
+  const answers = practiceOrder(
     random,
     pool.map((_, i) => i + 1),
+    weak,
+    (n) => pool[n - 1]!.id,
   ).slice(0, ROUND_LENGTH);
   return answers.map((n) => {
     const fitting = templates.filter((template) => template.fits(n, level));
@@ -148,23 +153,26 @@ function numbersRound(
   });
 }
 
-export const numbersLevel1 = (random: Random): Question[] =>
+export const numbersLevel1 = (random: Random, weak: WeakIds): Question[] =>
   numbersRound(
     { max: 10, countCap: 10, optionCount: 3 },
     [recognise, count, after, before],
     random,
+    weak,
   );
 
-export const numbersLevel2 = (random: Random): Question[] =>
+export const numbersLevel2 = (random: Random, weak: WeakIds): Question[] =>
   numbersRound(
     { max: 20, countCap: 10, optionCount: 4 },
     LATER_TEMPLATES,
     random,
+    weak,
   );
 
-export const numbersLevel3 = (random: Random): Question[] =>
+export const numbersLevel3 = (random: Random, weak: WeakIds): Question[] =>
   numbersRound(
     { max: 50, countCap: 20, optionCount: 4 },
     LATER_TEMPLATES,
     random,
+    weak,
   );

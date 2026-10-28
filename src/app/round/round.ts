@@ -204,9 +204,14 @@ export class Round {
   private readonly progress = inject(Progress);
   private readonly advanceDelay = inject(ADVANCE_DELAY_MS);
 
-  protected readonly questions = computed(() =>
-    buildRound(this.area(), this.level(), this.random),
-  );
+  protected readonly questions = computed(() => {
+    const area = this.area();
+    // Read once: answers in this round must not rebuild it.
+    const weak = untracked(this.progress.weakItems)
+      .filter((item) => item.area === area)
+      .map((item) => item.id);
+    return buildRound(area, this.level(), this.random, new Set(weak));
+  });
   protected readonly index = signal(0);
   protected readonly question = computed(() => this.questions()[this.index()]!);
   /** The tile shown as the answer once the question is settled. */

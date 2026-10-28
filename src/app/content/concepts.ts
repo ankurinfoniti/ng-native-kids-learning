@@ -1,12 +1,14 @@
-import { shuffle, type Random } from '../random.ts';
+import type { Random } from '../random.ts';
 import {
   optionsFor,
+  practiceOrder,
   ROUND_LENGTH,
   type Item,
   type Place,
   type Question,
   type Shape,
   type Size,
+  type WeakIds,
 } from './question.ts';
 
 /** Each colour, with the ones a child mixes it up with offered first as wrong answers. */
@@ -147,9 +149,11 @@ function conceptsRound(
   }));
 }
 
-export const conceptsLevel1 = (random: Random): Question[] =>
+const byId = (item: Item) => item.id;
+
+export const conceptsLevel1 = (random: Random, weak: WeakIds): Question[] =>
   conceptsRound(
-    shuffle(random, COLOUR_ITEMS)
+    practiceOrder(random, COLOUR_ITEMS, weak, byId)
       .slice(0, ROUND_LENGTH)
       .map((item) => ({
         item,
@@ -162,9 +166,9 @@ export const conceptsLevel1 = (random: Random): Question[] =>
   );
 
 /** Five shapes fill a round of ten by each being asked twice, never twice running. */
-export const conceptsLevel2 = (random: Random): Question[] => {
-  const first = shuffle(random, SHAPE_ITEMS);
-  const second = shuffle(random, SHAPE_ITEMS);
+export const conceptsLevel2 = (random: Random, weak: WeakIds): Question[] => {
+  const first = practiceOrder(random, SHAPE_ITEMS, weak, byId);
+  const second = practiceOrder(random, SHAPE_ITEMS, weak, byId);
   if (second[0] === first.at(-1)) second.push(second.shift()!);
   return conceptsRound(
     [...first, ...second].slice(0, ROUND_LENGTH).map((item) => ({
@@ -178,9 +182,9 @@ export const conceptsLevel2 = (random: Random): Question[] => {
   );
 };
 
-export const conceptsLevel3 = (random: Random): Question[] =>
+export const conceptsLevel3 = (random: Random, weak: WeakIds): Question[] =>
   conceptsRound(
-    shuffle(random, [...BIG_SMALL, ...TALL_SHORT])
+    practiceOrder(random, [...BIG_SMALL, ...TALL_SHORT], weak, byId)
       .slice(0, ROUND_LENGTH)
       .map((item) => ({
         item,
@@ -192,5 +196,12 @@ export const conceptsLevel3 = (random: Random): Question[] =>
     random,
   );
 
-export const conceptsLevel4 = (random: Random): Question[] =>
-  conceptsRound(shuffle(random, PLACE_ASKS).slice(0, ROUND_LENGTH), 4, random);
+export const conceptsLevel4 = (random: Random, weak: WeakIds): Question[] =>
+  conceptsRound(
+    practiceOrder(random, PLACE_ASKS, weak, (ask) => ask.item.id).slice(
+      0,
+      ROUND_LENGTH,
+    ),
+    4,
+    random,
+  );

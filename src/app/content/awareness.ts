@@ -1,10 +1,12 @@
-import { shuffle, type Random } from '../random.ts';
+import type { Random } from '../random.ts';
 import {
   glyph,
   optionsFor,
+  practiceOrder,
   ROUND_LENGTH,
   type Item,
   type Question,
+  type WeakIds,
 } from './question.ts';
 
 /** Things a child mixes up, offered first as wrong answers. */
@@ -212,9 +214,10 @@ function awarenessRound(
   asks: readonly Ask[],
   optionCount: number,
   random: Random,
+  weak: WeakIds,
 ): Question[] {
   const seen = new Set<string>();
-  return shuffle(random, asks)
+  return practiceOrder(random, asks, weak, (ask) => ask.item.id)
     .filter((ask) => !seen.has(ask.item.id) && seen.add(ask.item.id))
     .slice(0, ROUND_LENGTH)
     .map((ask) => ({
@@ -234,8 +237,8 @@ const LEVEL_1 = [
   ...categoryAsks(FRUITS, VEGETABLES, 'is not a vegetable'),
 ];
 
-export const awarenessLevel1 = (random: Random): Question[] =>
-  awarenessRound(LEVEL_1, 3, random);
+export const awarenessLevel1 = (random: Random, weak: WeakIds): Question[] =>
+  awarenessRound(LEVEL_1, 3, random, weak);
 
 /** "Which animal says moo?", among the others that make a sound. */
 function soundAsks(): Ask[] {
@@ -259,8 +262,8 @@ const LEVEL_2 = [
   ...categoryAsks(ANIMALS, BIRDS, 'is not a bird'),
 ];
 
-export const awarenessLevel2 = (random: Random): Question[] =>
-  awarenessRound(LEVEL_2, 4, random);
+export const awarenessLevel2 = (random: Random, weak: WeakIds): Question[] =>
+  awarenessRound(LEVEL_2, 4, random, weak);
 
 /** "Which one flies in the sky?": each kind of vehicle among the other kinds. */
 function vehicleKindAsks(kind: readonly Item[], phrase: string): Ask[] {
@@ -280,5 +283,5 @@ const LEVEL_3 = [
   ...vehicleKindAsks(ROAD, 'goes on the road'),
 ];
 
-export const awarenessLevel3 = (random: Random): Question[] =>
-  awarenessRound(LEVEL_3, 4, random);
+export const awarenessLevel3 = (random: Random, weak: WeakIds): Question[] =>
+  awarenessRound(LEVEL_3, 4, random, weak);

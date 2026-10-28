@@ -1,10 +1,12 @@
-import { shuffle, type Random } from '../random.ts';
+import type { Random } from '../random.ts';
 import {
   glyph,
   optionsFor,
+  practiceOrder,
   ROUND_LENGTH,
   type Item,
   type Question,
+  type WeakIds,
 } from './question.ts';
 
 /** Each letter as said by name, not by its sound. */
@@ -106,10 +108,16 @@ interface EnglishLevel {
   ask(index: number): { instruction: string; prompt?: readonly string[] };
 }
 
-function englishRound(level: EnglishLevel, random: Random): Question[] {
-  const indexes = shuffle(
+function englishRound(
+  level: EnglishLevel,
+  random: Random,
+  weak: WeakIds,
+): Question[] {
+  const indexes = practiceOrder(
     random,
     LETTERS.map((_, i) => i),
+    weak,
+    (i) => level.pool[i]!.id,
   ).slice(0, ROUND_LENGTH);
   return indexes.map((i) => {
     const item = level.pool[i]!;
@@ -123,7 +131,7 @@ function englishRound(level: EnglishLevel, random: Random): Question[] {
   });
 }
 
-export const englishLevel1 = (random: Random): Question[] =>
+export const englishLevel1 = (random: Random, weak: WeakIds): Question[] =>
   englishRound(
     {
       pool: CAPITALS,
@@ -131,9 +139,10 @@ export const englishLevel1 = (random: Random): Question[] =>
       ask: (i) => ({ instruction: `Tap the letter ${LETTERS[i]![1]}` }),
     },
     random,
+    weak,
   );
 
-export const englishLevel2 = (random: Random): Question[] =>
+export const englishLevel2 = (random: Random, weak: WeakIds): Question[] =>
   englishRound(
     {
       pool: SMALLS,
@@ -141,9 +150,10 @@ export const englishLevel2 = (random: Random): Question[] =>
       ask: (i) => ({ instruction: `Tap the letter ${LETTERS[i]![1]}` }),
     },
     random,
+    weak,
   );
 
-export const englishLevel3 = (random: Random): Question[] =>
+export const englishLevel3 = (random: Random, weak: WeakIds): Question[] =>
   englishRound(
     {
       pool: SMALLS,
@@ -157,9 +167,10 @@ export const englishLevel3 = (random: Random): Question[] =>
       },
     },
     random,
+    weak,
   );
 
-export const englishLevel4 = (random: Random): Question[] =>
+export const englishLevel4 = (random: Random, weak: WeakIds): Question[] =>
   englishRound(
     {
       pool: PICTURES,
@@ -173,4 +184,5 @@ export const englishLevel4 = (random: Random): Question[] =>
       },
     },
     random,
+    weak,
   );

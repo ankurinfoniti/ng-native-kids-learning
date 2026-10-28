@@ -2,10 +2,12 @@ import { pick, shuffle, type Random } from '../random.ts';
 import { KINDS } from './awareness.ts';
 import {
   fromWritten,
+  practiceOrder,
   ROUND_LENGTH,
   type Item,
   type Question,
   type Visual,
+  type WeakIds,
   type WrittenQuestion,
 } from './question.ts';
 
@@ -111,14 +113,16 @@ const PAIRS: readonly WrittenQuestion[] = [
   pair(T.ball, T.goal, [T.milk, T.tooth]),
 ];
 
-export const reasoningLevel1 = (random: Random): Question[] =>
-  shuffle(random, PAIRS)
+const byAnswer = (written: WrittenQuestion) => written.answer.id;
+
+export const reasoningLevel1 = (random: Random, weak: WeakIds): Question[] =>
+  practiceOrder(random, PAIRS, weak, byAnswer)
     .slice(0, ROUND_LENGTH)
     .map((written) => fromWritten(written, random));
 
 /** Ten different odd ones out, each among three of another kind. */
-export const reasoningLevel2 = (random: Random): Question[] =>
-  shuffle(random, KINDS.flat())
+export const reasoningLevel2 = (random: Random, weak: WeakIds): Question[] =>
+  practiceOrder(random, KINDS.flat(), weak, (item) => item.id)
     .slice(0, ROUND_LENGTH)
     .map((odd) => {
       const others = pick(
@@ -224,9 +228,17 @@ function pattern(answer: Thing, random: Random): WrittenQuestion {
 }
 
 /** Three written patterns and the rest made up, none with the same answer. */
-export const reasoningLevel3 = (random: Random): Question[] => {
-  const written = shuffle(random, WRITTEN_PATTERNS).slice(0, 3);
-  const made = shuffle(random, [...COLOURS, ...PATTERN_THINGS])
+export const reasoningLevel3 = (random: Random, weak: WeakIds): Question[] => {
+  const written = practiceOrder(random, WRITTEN_PATTERNS, weak, byAnswer).slice(
+    0,
+    3,
+  );
+  const made = practiceOrder(
+    random,
+    [...COLOURS, ...PATTERN_THINGS],
+    weak,
+    (item) => item.id,
+  )
     .filter((item) => !written.some((w) => w.answer === item))
     .slice(0, ROUND_LENGTH - written.length)
     .map((answer) => pattern(answer, random));

@@ -1,7 +1,25 @@
-import { shuffle, type Random } from '../random.ts';
+import { shuffle, weightedShuffle, type Random } from '../random.ts';
 import type { Language } from '../speaker.ts';
 
 export const ROUND_LENGTH = 10;
+
+/** How much likelier a weak item is to be asked than any other. */
+export const WEAK_WEIGHT = 3;
+
+/** Ids of the items to practise more: the weak spots in the area being played. */
+export type WeakIds = ReadonlySet<string>;
+
+/** Asks in random order, those about weak items likelier to come first. */
+export function practiceOrder<T>(
+  random: Random,
+  asks: readonly T[],
+  weak: WeakIds,
+  idOf: (ask: T) => string,
+): T[] {
+  return weightedShuffle(random, asks, (ask) =>
+    weak.has(idOf(ask)) ? WEAK_WEIGHT : 1,
+  );
+}
 
 /** Stars for a round's first-try correct answers out of 10. */
 export function starsFor(score: number): number {

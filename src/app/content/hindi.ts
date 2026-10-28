@@ -1,10 +1,12 @@
-import { shuffle, type Random } from '../random.ts';
+import type { Random } from '../random.ts';
 import {
   glyph,
   optionsFor,
+  practiceOrder,
   ROUND_LENGTH,
   type Item,
   type Question,
+  type WeakIds,
 } from './question.ts';
 
 /** स्वर, अ to अः. */
@@ -97,8 +99,9 @@ function hindiRound(
   pool: readonly Item[],
   optionCount: number,
   random: Random,
+  weak: WeakIds,
 ): Question[] {
-  return shuffle(random, pool)
+  return practiceOrder(random, pool, weak, (item) => item.id)
     .slice(0, ROUND_LENGTH)
     .map((item) => ({
       instruction: `${item.name} पर टैप करो`,
@@ -114,8 +117,8 @@ const CONSONANT_ITEMS = CONSONANTS.map((letter) =>
   letterItem('consonant', letter),
 );
 
-export const hindiLevel1 = (random: Random): Question[] =>
-  hindiRound(VOWEL_ITEMS, 3, random);
+export const hindiLevel1 = (random: Random, weak: WeakIds): Question[] =>
+  hindiRound(VOWEL_ITEMS, 3, random, weak);
 
-export const hindiLevel2 = (random: Random): Question[] =>
-  hindiRound(CONSONANT_ITEMS, 4, random);
+export const hindiLevel2 = (random: Random, weak: WeakIds): Question[] =>
+  hindiRound(CONSONANT_ITEMS, 4, random, weak);

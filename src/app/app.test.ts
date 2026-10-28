@@ -133,16 +133,20 @@ const INSTRUCTION =
   /^(Tap the number \d+|How many \w+\?|What comes (after|before) \d+\?|What comes between \d+ and \d+\?|Which is the (biggest|smallest) number\?)$/;
 
 /** Numbers levels 2 and 3 opened, as after two 3-star rounds. */
-function numbersUnlockedStore() {
+function numbersUnlockedStore(items?: ProgressDoc['items']) {
   return new InMemoryProgressStore({
     version: 1,
     bestStars: { numbers: { 1: 3, 2: 3 } },
     unlocked: { numbers: [2, 3] },
+    items,
   });
 }
 
 /** A seed whose level 2 round has between, biggest and smallest, and whose level 3 round asks for a mirrored number. */
 const VARIED_SEED = 19;
+
+/** A seed whose level 3 round leaves out 37, unless 37 is weak. */
+const WEAK_SEED = 1;
 
 /** An advance delay no test outlasts, so feedback stays on screen to be inspected. */
 const HOLD_FEEDBACK = 60_000;
@@ -667,6 +671,35 @@ test('a "between" question shows both numbers around a gap and takes the number 
   expect(
     await screen.findByRole('image', { name: '3 of 3 stars' }),
   ).toBeTruthy();
+});
+
+test('a weak number is asked in a Numbers level 3 round that leaves it out when it is not weak', async () => {
+  const weak37 = {
+    'number:37': {
+      area: 'numbers',
+      name: '37',
+      recent: [false, false],
+      streak: 0,
+      weak: true,
+    },
+  };
+  const askedWith = async (items?: ProgressDoc['items']) => {
+    const { speaker, user } = await renderApp(
+      numbersUnlockedStore(items),
+      new SeededRandom(WEAK_SEED),
+    );
+    await startLevel(user, 3);
+    const asked = await playRoundAsked(user, speaker);
+    cleanup();
+    return asked;
+  };
+
+  const notWeak = await askedWith();
+  const weak = await askedWith(weak37);
+
+  expect(notWeak).not.toContain(37);
+  expect(weak).toContain(37);
+  expect(new Set(weak).size).toBe(10);
 });
 
 test('"biggest" and "smallest" questions are answered by the biggest or smallest tile', async () => {
@@ -1866,6 +1899,18 @@ async function playRoundMissing(
     await user.press(tile(answer));
   }
   await screen.findByRole('image', { name: /of 3 stars$/ });
+}
+
+/** Plays a whole round right first time and returns the numbers asked for. */
+async function playRoundAsked(user: User, speaker: RecordingSpeaker) {
+  const asked: number[] = [];
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    asked.push(solve(speaker));
+    await user.press(tile(asked.at(-1)!));
+  }
+  await screen.findByRole('image', { name: /of 3 stars$/ });
+  return asked;
 }
 
 /** From the Numbers levels, after the back button left Results, into level 1 again. */
