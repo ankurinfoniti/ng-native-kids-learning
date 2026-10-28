@@ -16,7 +16,7 @@ import { starsFor } from '../content/question.ts';
 import { buildRound } from '../content/rounds.ts';
 import { Progress } from '../progress/progress.ts';
 import { Random, pick } from '../random.ts';
-import { Speaker } from '../speaker.ts';
+import { Speaker, type Language } from '../speaker.ts';
 import { VisualView } from './visual.ts';
 
 /** How long feedback stays on screen before the next question. */
@@ -24,7 +24,19 @@ export const ADVANCE_DELAY_MS = new InjectionToken<number>('ADVANCE_DELAY_MS', {
   factory: () => 1800,
 });
 
-const PRAISE = ['Well done!', 'Super!', 'Great job!', 'You got it!'];
+const FEEDBACK: Record<
+  Language,
+  { readonly praise: readonly string[]; readonly tryAgain: string }
+> = {
+  en: {
+    praise: ['Well done!', 'Super!', 'Great job!', 'You got it!'],
+    tryAgain: 'Try again!',
+  },
+  hi: {
+    praise: ['शाबाश!', 'बहुत अच्छे!', 'बढ़िया!', 'वाह!'],
+    tryAgain: 'फिर से कोशिश करो!',
+  },
+};
 
 @Component({
   selector: 'app-round',
@@ -226,16 +238,17 @@ export class Round {
   protected choose(optionId: string): void {
     if (this.resolvedId() || this.wrongIds().includes(optionId)) return;
     const q = this.question();
+    const feedback = FEEDBACK[q.language];
     const firstTry = this.wrongIds().length === 0;
     if (optionId === q.answerId) {
       if (firstTry) this.score++;
       this.resolvedId.set(optionId);
       this.celebratedId.set(optionId);
-      this.speaker.speak(pick(this.random, PRAISE), 'en');
+      this.speaker.speak(pick(this.random, feedback.praise), q.language);
       this.advance();
     } else if (firstTry) {
       this.wrongIds.set([optionId]);
-      this.speaker.speak('Try again!', q.language);
+      this.speaker.speak(feedback.tryAgain, q.language);
     } else {
       this.wrongIds.update((ids) => [...ids, optionId]);
       this.resolvedId.set(q.answerId);

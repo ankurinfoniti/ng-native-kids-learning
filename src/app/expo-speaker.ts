@@ -1,7 +1,8 @@
 import * as Speech from 'expo-speech';
 import { Speaker, type Language } from './speaker.ts';
 
-const VOICES: Record<Language, string> = { en: 'en', hi: 'hi-IN' };
+// Android needs a bare code ('hi-IN' is ill-formed there); a voice not installed falls back to the default.
+const VOICES: Record<Language, string> = { en: 'en', hi: 'hi' };
 
 export class ExpoSpeaker implements Speaker {
   speak(text: string, language: Language): void {

@@ -1196,6 +1196,226 @@ test('Reasoning level 3 asks what comes next in a pattern of things or colours, 
   ).toBeTruthy();
 });
 
+test('Hindi lists two levels and level 1 asks in Hindi for ten vowels, among 3 vowel tiles, look-alikes first: उ ऊ, इ ई', async () => {
+  const { speaker, user } = await renderApp();
+  expect(
+    screen.getByRole('button', { name: 'Hindi, 0 of 3 stars' }),
+  ).toBeTruthy();
+  await user.press(screen.getByRole('button', { name: /^Hindi, / }));
+  expect(
+    await screen.findByRole('button', { name: 'Level 2, locked' }),
+  ).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /^Level 3, / })).toBeNull();
+  await user.press(screen.getByRole('button', { name: /^Level 1, \d/ }));
+  const asked = new Set<string>();
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    expect(speaker.lastSpoken?.language).toBe('hi');
+    const letter = hindiAsked(speaker);
+    expect(HINDI_VOWELS).toContain(letter);
+    const tiles = optionTiles();
+    expect(tiles).toHaveLength(3);
+    for (const node of tiles) {
+      expect(HINDI_VOWELS).toContain(tileGlyph(node));
+      expect(node.props['accessibilityLabel']).toBe(tileGlyph(node));
+    }
+    const partner = VOWEL_LOOK_ALIKES[letter];
+    if (partner) expect(tiles.map(tileGlyph)).toContain(partner);
+    asked.add(letter);
+    await user.press(hindiTile(letter));
+  }
+
+  expect(asked.size).toBe(10);
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+test('Hindi level 2 asks for consonants among 4, offering look-alikes first: ब व, घ ध, म भ, प ष', async () => {
+  const { speaker, user } = await renderApp(
+    new InMemoryProgressStore({
+      version: 1,
+      bestStars: { hindi: { 1: 3 } },
+      unlocked: { hindi: [2] },
+    }),
+    new SeededRandom(HINDI_SEED),
+  );
+  await startLevel(user, 2, 'Hindi');
+  let lookAlikes = 0;
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    expect(speaker.lastSpoken?.language).toBe('hi');
+    const letter = hindiAsked(speaker);
+    expect(HINDI_CONSONANTS).toContain(letter);
+    const tiles = optionTiles();
+    expect(tiles).toHaveLength(4);
+    for (const node of tiles)
+      expect(HINDI_CONSONANTS).toContain(tileGlyph(node));
+    const partner = ['बव', 'घध', 'मभ', 'पष']
+      .find((pair) => pair.includes(letter))
+      ?.replace(letter, '');
+    if (partner) {
+      lookAlikes++;
+      expect(tiles.map(tileGlyph)).toContain(partner);
+    }
+    await user.press(hindiTile(letter));
+  }
+
+  expect(lookAlikes).toBeGreaterThan(0);
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+test('Hindi letters that sound alike are asked for by the word children learn them with', async () => {
+  const { speaker, user } = await renderApp(
+    new InMemoryProgressStore({
+      version: 1,
+      bestStars: { hindi: { 1: 3 } },
+      unlocked: { hindi: [2] },
+    }),
+    new SeededRandom(HINDI_SEED),
+  );
+  await startLevel(user, 2, 'Hindi');
+  const named = new Set<string>();
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    for (const node of optionTiles()) {
+      const glyph = tileGlyph(node);
+      expect(node.props['accessibilityLabel']).toBe(SIBILANTS[glyph] ?? glyph);
+      if (SIBILANTS[glyph]) named.add(glyph);
+    }
+    await user.press(hindiTile(hindiAsked(speaker)));
+  }
+
+  expect(named.size).toBeGreaterThan(0);
+});
+
+test('in Hindi, "Try again", the shown answer and praise are all spoken in Hindi', async () => {
+  const random = new SteeredRandom(HINDI_SEED);
+  const { speaker, user } = await renderApp(undefined, random);
+  await startLevel(user, 1, 'Hindi');
+  await screen.findByText('1 / 10');
+  const first = hindiAsked(speaker);
+  const [miss, secondMiss] = optionTiles().filter(
+    (node) => tileGlyph(node) !== first,
+  );
+
+  await user.press(miss!);
+  expect(speaker.lastSpoken).toEqual({
+    text: 'फिर से कोशिश करो!',
+    language: 'hi',
+  });
+  await user.press(secondMiss!);
+  expect(speaker.lastSpoken).toEqual({
+    text: `यह ${first} है।`,
+    language: 'hi',
+  });
+
+  await screen.findByText('2 / 10');
+  random.queue(0);
+  await user.press(hindiTile(hindiAsked(speaker)));
+  expect(speaker.spoken).toContainEqual({ text: 'शाबाश!', language: 'hi' });
+
+  await screen.findByText('3 / 10');
+  random.queue(0.99);
+  await user.press(hindiTile(hindiAsked(speaker)));
+  expect(speaker.spoken).toContainEqual({ text: 'वाह!', language: 'hi' });
+});
+
+/** श, ष and स sound the same; each is named after its picture word. */
+const SIBILANTS: Record<string, string> = {
+  श: 'शलगम वाला श',
+  ष: 'षट्कोण वाला ष',
+  स: 'सपेरे वाला स',
+};
+
+/** A seed whose Hindi level 2 round asks for a letter with a look-alike, and shows a sibilant. */
+const HINDI_SEED = 1;
+
+const HINDI_CONSONANTS = [
+  'क',
+  'ख',
+  'ग',
+  'घ',
+  'ङ',
+  'च',
+  'छ',
+  'ज',
+  'झ',
+  'ञ',
+  'ट',
+  'ठ',
+  'ड',
+  'ढ',
+  'ण',
+  'त',
+  'थ',
+  'द',
+  'ध',
+  'न',
+  'प',
+  'फ',
+  'ब',
+  'भ',
+  'म',
+  'य',
+  'र',
+  'ल',
+  'व',
+  'श',
+  'ष',
+  'स',
+  'ह',
+  'क्ष',
+  'त्र',
+  'ज्ञ',
+];
+
+const HINDI_VOWELS = [
+  'अ',
+  'आ',
+  'इ',
+  'ई',
+  'उ',
+  'ऊ',
+  'ऋ',
+  'ए',
+  'ऐ',
+  'ओ',
+  'औ',
+  'अं',
+  'अः',
+];
+
+/** Each look-alike vowel, and the one it is mixed up with. */
+const VOWEL_LOOK_ALIKES: Record<string, string> = {
+  उ: 'ऊ',
+  ऊ: 'उ',
+  इ: 'ई',
+  ई: 'इ',
+};
+
+/** The letter the last "... पर टैप करो" asked for: its name ends with the letter itself. */
+function hindiAsked(speaker: RecordingSpeaker): string {
+  const text = speaker.spoken.findLast((u) =>
+    / पर टैप करो$/.test(u.text),
+  )!.text;
+  return text
+    .replace(/ पर टैप करो$/, '')
+    .split(' ')
+    .at(-1)!;
+}
+
+function hindiTile(letter: string) {
+  const found = optionTiles().filter((node) => tileGlyph(node) === letter);
+  expect(found).toHaveLength(1);
+  return found[0]!;
+}
+
 /** Coloured circles and squares, as a colour pattern draws them. */
 const COLOUR_GLYPHS = [...'🔴🟠🟡🟢🔵🟣🟤⚫⚪🟥🟧🟨🟩🟦🟪🟫⬛⬜'];
 
