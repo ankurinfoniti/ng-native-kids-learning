@@ -53,6 +53,30 @@ export interface Question {
   readonly answerLine: string;
 }
 
+/** A question written out in full rather than made from a template. */
+export interface WrittenQuestion {
+  readonly instruction: string;
+  readonly prompt?: readonly string[];
+  readonly answer: Item;
+  /** Every wrong answer shown, so their number sets the tile count. */
+  readonly wrong: readonly Item[];
+  readonly answerLine: string;
+}
+
+export function fromWritten(
+  written: WrittenQuestion,
+  random: Random,
+): Question {
+  return {
+    instruction: written.instruction,
+    language: 'en',
+    prompt: written.prompt,
+    options: shuffle(random, [written.answer, ...written.wrong]),
+    answerId: written.answer.id,
+    answerLine: written.answerLine,
+  };
+}
+
 /** The answer plus distractors from its look-alikes first, closest first, then the pool, in shuffled order. */
 export function optionsFor(
   answer: Item,

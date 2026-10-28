@@ -166,6 +166,15 @@ const FAMILY = items('family', [
   ['baby', '👶'],
 ]);
 
+/** Kinds of thing a child tells apart: a fruit is not different from a vegetable, nor a bird from an animal. */
+export const KINDS: readonly (readonly Item[])[] = [
+  [...FRUITS, ...VEGETABLES],
+  [...ANIMALS, ...BIRDS],
+  BODY_PARTS,
+  VEHICLES,
+  FAMILY,
+];
+
 interface Ask {
   readonly item: Item;
   /** The items its wrong answers are drawn from. */

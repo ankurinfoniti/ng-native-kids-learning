@@ -18,6 +18,11 @@ import {
 } from './english.ts';
 import { numbersLevel1, numbersLevel2, numbersLevel3 } from './numbers.ts';
 import type { Question } from './question.ts';
+import {
+  reasoningLevel1,
+  reasoningLevel2,
+  reasoningLevel3,
+} from './reasoning.ts';
 
 const LEVELS: Record<string, Record<number, (random: Random) => Question[]>> = {
   english: {
@@ -38,6 +43,7 @@ const LEVELS: Record<string, Record<number, (random: Random) => Question[]>> = {
     2: awarenessLevel2,
     3: awarenessLevel3,
   },
+  reasoning: { 1: reasoningLevel1, 2: reasoningLevel2, 3: reasoningLevel3 },
 };
 
 export function hasLevel(area: string, level: number): boolean {

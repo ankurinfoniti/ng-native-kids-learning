@@ -35,6 +35,13 @@ export const AREAS: readonly Area[] = [
     colour: '#9be3a4',
     levelCount: 3,
   },
+  {
+    id: 'reasoning',
+    name: 'Reasoning',
+    emoji: '🧩',
+    colour: '#ffadd2',
+    levelCount: 3,
+  },
 ];
 
 export function areaById(id: string): Area | undefined {

@@ -1093,6 +1093,143 @@ test('General awareness level 3 asks for body parts among body parts, and for ve
   ).toBeTruthy();
 });
 
+test('Reasoning lists three levels and level 1 asks which one goes with a pictured thing, among 3 tiles', async () => {
+  const { speaker, user } = await renderApp(
+    undefined,
+    new SeededRandom(REASONING_SEED),
+  );
+  expect(
+    screen.getByRole('button', { name: 'Reasoning, 0 of 3 stars' }),
+  ).toBeTruthy();
+  await user.press(screen.getByRole('button', { name: /^Reasoning, / }));
+  for (const level of [2, 3]) {
+    expect(
+      await screen.findByRole('button', { name: `Level ${level}, locked` }),
+    ).toBeTruthy();
+  }
+  await user.press(screen.getByRole('button', { name: /^Level 1, \d/ }));
+  const asked = new Set<string>();
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    expect(speaker.lastSpoken?.language).toBe('en');
+    const thing = /^Which one goes with the (.+)\?$/.exec(
+      speaker.lastSpoken!.text,
+    )![1]!;
+    expect(promptGlyphs()).toEqual([PAIRS[thing]![0]]);
+    expect(optionTiles()).toHaveLength(3);
+    asked.add(thing);
+    await user.press(screen.getByRole('button', { name: PAIRS[thing]![1] }));
+  }
+
+  expect(asked.size).toBe(10);
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+test('Reasoning level 2 asks which one is different, among 3 of one kind and 1 of another', async () => {
+  const { speaker, user } = await renderApp(
+    reasoningUnlockedStore(),
+    new SeededRandom(REASONING_SEED),
+  );
+  await startLevel(user, 2, 'Reasoning');
+  const odd = new Set<string>();
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    expect(speaker.lastSpoken?.text).toBe('Which one is different?');
+    const tiles = optionTiles();
+    expect(tiles).toHaveLength(4);
+    const kinds = tiles.map((node) =>
+      KINDS.findIndex((kind) =>
+        kind.includes(String(node.props['accessibilityLabel'])),
+      ),
+    );
+    const different = tiles.filter(
+      (_, i) => kinds.filter((kind) => kind === kinds[i]).length === 1,
+    );
+    expect(different).toHaveLength(1);
+    expect(new Set(kinds).size).toBe(2);
+    odd.add(String(different[0]!.props['accessibilityLabel']));
+    await user.press(different[0]!);
+  }
+
+  expect(odd.size).toBe(10);
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+test('Reasoning level 3 asks what comes next in a pattern of things or colours, among 4 tiles', async () => {
+  const { speaker, user } = await renderApp(
+    reasoningUnlockedStore(),
+    new SeededRandom(REASONING_SEED),
+  );
+  await startLevel(user, 3, 'Reasoning');
+  const periods = new Set<number>();
+  let colours = 0;
+
+  for (let n = 1; n <= 10; n++) {
+    await screen.findByText(`${n} / 10`);
+    expect(speaker.lastSpoken?.text).toBe('What comes next?');
+    const glyphs = promptGlyphs();
+    expect(glyphs.pop()).toBe('❓');
+    const period = [1, 2, 3, 4].find((p) =>
+      glyphs.every((g, i) => i < p || g === glyphs[i - p]),
+    )!;
+    expect(glyphs.length).toBeGreaterThan(period);
+    periods.add(period);
+    if (glyphs.every((g) => COLOUR_GLYPHS.includes(g))) colours++;
+    const next = glyphs[glyphs.length - period];
+    const tiles = optionTiles();
+    expect(tiles).toHaveLength(4);
+    const answers = tiles.filter((node) => tileGlyph(node) === next);
+    expect(answers).toHaveLength(1);
+    await user.press(answers[0]!);
+  }
+
+  expect([...periods].sort()).toEqual([2, 3, 4]);
+  expect(colours).toBeGreaterThan(0);
+  expect(
+    await screen.findByRole('image', { name: '3 of 3 stars' }),
+  ).toBeTruthy();
+});
+
+/** Coloured circles and squares, as a colour pattern draws them. */
+const COLOUR_GLYPHS = [...'🔴🟠🟡🟢🔵🟣🟤⚫⚪🟥🟧🟨🟩🟦🟪🟫⬛⬜'];
+
+/** Each pictured thing, and the thing that goes with it. */
+const PAIRS: Record<string, readonly [string, string]> = {
+  sock: ['🧦', 'shoe'],
+  toothbrush: ['🪥', 'tooth'],
+  cup: ['☕', 'teapot'],
+  lock: ['🔒', 'key'],
+  pen: ['🖊️', 'paper'],
+  needle: ['🪡', 'thread'],
+  bread: ['🍞', 'butter'],
+  'rain cloud': ['🌧️', 'umbrella'],
+  bee: ['🐝', 'honey'],
+  cow: ['🐄', 'milk'],
+  hen: ['🐔', 'egg'],
+  dog: ['🐶', 'bone'],
+  monkey: ['🐒', 'banana'],
+  hand: ['✋', 'glove'],
+  ball: ['⚽', 'goal'],
+};
+
+/** A seed whose Reasoning rounds ask every kind of pattern. */
+const REASONING_SEED = 1;
+
+/** Reasoning levels 2 and 3 opened, as after two 3-star rounds. */
+function reasoningUnlockedStore() {
+  return new InMemoryProgressStore({
+    version: 1,
+    bestStars: { reasoning: { 1: 3, 2: 3 } },
+    unlocked: { reasoning: [2, 3] },
+  });
+}
+
 const FRUITS = [
   'apple',
   'banana',
@@ -1201,6 +1338,15 @@ const FAMILY = [
   'sister',
   'brother',
   'baby',
+];
+
+/** Kinds of thing a child tells apart: a fruit is not different from a vegetable, nor a bird from an animal. */
+const KINDS = [
+  [...FRUITS, ...VEGETABLES],
+  [...ANIMALS, ...BIRDS],
+  BODY_PARTS,
+  VEHICLES,
+  FAMILY,
 ];
 
 /** What each "Which one ...?" picks out. */
