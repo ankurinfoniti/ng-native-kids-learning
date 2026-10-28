@@ -1,12 +1,17 @@
 import { Injectable } from '@angular/core';
 
-/** A number in [0, 1). Every shuffle and pick goes through it, so a test can fix the sequence. */
-@Injectable({
-  providedIn: 'root',
-  useFactory: () => ({ next: () => Math.random() }),
-})
-export abstract class Random {
-  abstract next(): number;
+/**
+ * A number in [0, 1). Every shuffle and pick goes through it, so a test can fix the sequence.
+ *
+ * The class is its own default rather than an abstract class made by `useFactory`: hot reload
+ * points an injectable's factory at the class's constructor factory, which would make
+ * `inject(Random)` a `new Random()` with no `next`.
+ */
+@Injectable({ providedIn: 'root' })
+export class Random {
+  next(): number {
+    return Math.random();
+  }
 }
 
 export function pick<T>(random: Random, items: readonly T[]): T {
