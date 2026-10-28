@@ -1,5 +1,11 @@
 import { Component, computed, inject, input } from '@angular/core';
-import { Pressable, SafeAreaView, Text, View } from '@ng-native/components';
+import {
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  Text,
+  View,
+} from '@ng-native/components';
 import { NativeNavigation } from '@ng-native/router';
 import { areaById } from '../content/areas.ts';
 import { hasLevel } from '../content/rounds.ts';
@@ -7,44 +13,51 @@ import { Progress } from '../progress/progress.ts';
 
 @Component({
   selector: 'app-area',
-  imports: [Pressable, SafeAreaView, Text, View],
+  imports: [Pressable, SafeAreaView, ScrollView, Text, View],
   host: { style: 'flex: 1' },
   template: `
     <safe-area-view class="screen">
-      <text class="title">{{ details()?.emoji }} {{ details()?.name }}</text>
-      <view class="levels">
-        @for (level of levels(); track level.number) {
-          <pressable
-            accessibilityRole="button"
-            [accessibilityLabel]="level.label"
-            class="level"
-            [class.locked]="!level.unlocked"
-            [disabled]="!level.playable"
-            (press)="start(level.number)"
-          >
-            <text class="level-name">Level {{ level.number }}</text>
-            @if (level.unlocked) {
-              <view class="stars">
-                @for (slot of [1, 2, 3]; track slot) {
-                  <text class="star" [class.empty]="slot > level.stars"
-                    >⭐</text
-                  >
-                }
-              </view>
-            } @else {
-              <text class="lock">🔒</text>
-            }
-          </pressable>
-        }
-      </view>
+      <scroll-view
+        class="scroll"
+        [contentContainerStyle]="{ gap: 24, padding: 16 }"
+        [showsVerticalScrollIndicator]="true"
+      >
+        <text class="title">{{ details()?.emoji }} {{ details()?.name }}</text>
+        <view class="levels">
+          @for (level of levels(); track level.number) {
+            <pressable
+              accessibilityRole="button"
+              [accessibilityLabel]="level.label"
+              class="level"
+              [class.locked]="!level.unlocked"
+              [disabled]="!level.playable"
+              (press)="start(level.number)"
+            >
+              <text class="level-name">Level {{ level.number }}</text>
+              @if (level.unlocked) {
+                <view class="stars">
+                  @for (slot of [1, 2, 3]; track slot) {
+                    <text class="star" [class.empty]="slot > level.stars"
+                      >⭐</text
+                    >
+                  }
+                </view>
+              } @else {
+                <text class="lock">🔒</text>
+              }
+            </pressable>
+          }
+        </view>
+      </scroll-view>
     </safe-area-view>
   `,
   styles: `
     .screen {
       flex: 1;
       background-color: #fff8e7;
-      padding: 16px;
-      gap: 24px;
+    }
+    .scroll {
+      flex: 1;
     }
     .title {
       font-size: 32px;
